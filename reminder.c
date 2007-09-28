@@ -17,33 +17,43 @@ glong get_epochseconds()
   return time.tv_sec;
 }
 
-void cell_edited(Cellrenderertext cell, const gchar *path_string,
+/* Oh dear god please die gtk+, why don't you pass the new state here? */
+void cell_toggled(Cellrenderer renderer, const gchar *path_string,
+                  Liststore liststore)
+{
+  Treeiter iter;
+  Treepath path = gtk_tree_path_new_from_string(path_string);
+  gint column;
+  gboolean value;
+
+  column = GPOINTER_TO_INT(g_object_get_data(renderer.o, "column"));
+
+  gtk_tree_model_get_iter(liststore.t, &iter, path);
+  gtk_tree_model_get(liststore.t, &iter, column, &value, -1);
+  value = !value;
+  gtk_list_store_set(liststore.l, &iter, column, value, -1);
+
+  gtk_tree_path_free(path);
+}
+
+void cell_edited(Cellrenderer renderer, const gchar *path_string,
                  gchar *new_text, Liststore liststore)
 {
-  Cellrenderer renderer;
   Treeiter iter;
   Treepath path = gtk_tree_path_new_from_string(path_string);
   gint column;
 
-  renderer.t = cell;
   column = GPOINTER_TO_INT(g_object_get_data(renderer.o, "column"));
 
   gtk_tree_model_get_iter(liststore.t, &iter, path);
 
   switch (column) {
     case 0: /* name */
+    case 2: /* last done date */
       gtk_list_store_set(liststore.l, &iter, column, new_text, -1);
       break;
     case 1: /* interval */
       gtk_list_store_set(liststore.l, &iter, column, GINT_TO_POINTER(atoi(new_text)), -1);
-      break;
-    case 2: /* last done date */
-      {
-        GTimeVal time;
-        time.tv_sec = atoi(new_text);
-        time.tv_usec = 0;
-        gtk_list_store_set(liststore.l, &iter, column, g_time_val_to_iso8601(&time), -1);
-      }
       break;
   }
 }
@@ -177,10 +187,19 @@ void save_actions(Button button, Treeview treeview)
   valid = gtk_tree_model_get_iter_first(liststore.t, &iter);
 
   while (valid) {
+    GTimeVal time;
     Action *a;
+    const gchar *iso;
     
     a = malloc(sizeof(Action));
-    gtk_tree_model_get(liststore.t, &iter, 0, &a->name, 1, &a->interval, 2, &a->lastdone, -1);
+    gtk_tree_model_get(liststore.t, &iter,
+                       0, &a->name,
+                       1, &a->interval,
+                       2, &iso,
+                       3, &a->expired,
+                       -1);
+    g_time_val_from_iso8601(iso, &time);
+    a->lastdone = time.tv_sec;
     actions = g_slist_append(actions, a);
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
   }
@@ -198,7 +217,7 @@ void save_actions(Button button, Treeview treeview)
   g_free(config_file);
 }
 
-Treeviewcolumn new_column(const gchar *name, Liststore store, gint c)
+Treeviewcolumn new_text_column(const gchar *name, Liststore store, gint c)
 {
   Treeviewcolumn column;
   Cellrenderer renderer;
@@ -217,6 +236,25 @@ Treeviewcolumn new_column(const gchar *name, Liststore store, gint c)
   return column;
 }
 
+Treeviewcolumn new_check_column(const gchar *name, Liststore store, gint c)
+{
+  Treeviewcolumn column;
+  Cellrenderer renderer;
+
+  renderer.r = gtk_cell_renderer_toggle_new();
+  g_object_set(renderer.o, "activatable", TRUE, NULL);
+  g_object_set_data(renderer.o, "column", GINT_TO_POINTER(c));
+  g_signal_connect(renderer.o, "toggled", G_CALLBACK(cell_toggled), store.t);
+
+  column.c = gtk_tree_view_column_new_with_attributes(name, renderer.r, "active", c, NULL);
+  g_object_set(column.o, "resizable", TRUE,
+                         "sizing", GTK_TREE_VIEW_COLUMN_FIXED,
+                         "min-width", 10,
+                         NULL);
+
+  return column;
+}
+
 Widget create_settings()
 {
   Vbox vbox; /* This contains all elements */
@@ -229,15 +267,16 @@ Widget create_settings()
   Treeselection selection;
 
   /* Create a new liststore and attach it to a treeview */
-  liststore.l = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_INT, G_TYPE_STRING);
+  liststore.l = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_INT, G_TYPE_STRING, G_TYPE_BOOLEAN);
 
   treeview.w = gtk_tree_view_new_with_model(liststore.t);
   gtk_tree_view_set_rules_hint(treeview.t, TRUE);
   gtk_tree_view_set_headers_visible(treeview.t, TRUE);  
 
-  gtk_tree_view_insert_column(treeview.t, new_column("Task", liststore, 0).c, -1);
-  gtk_tree_view_insert_column(treeview.t, new_column("Interval", liststore, 1).c, -1);
-  gtk_tree_view_insert_column(treeview.t, new_column("Last Done", liststore, 2).c, -1);
+  gtk_tree_view_insert_column(treeview.t, new_text_column("Task", liststore, 0).c, -1);
+  gtk_tree_view_insert_column(treeview.t, new_text_column("Interval", liststore, 1).c, -1);
+  gtk_tree_view_insert_column(treeview.t, new_text_column("Last Done", liststore, 2).c, -1);
+  gtk_tree_view_insert_column(treeview.t, new_check_column("Expired", liststore, 3).c, -1);
 
   /* Load up our actions into the liststore */
   while (i) {
@@ -247,7 +286,11 @@ Widget create_settings()
     time.tv_usec = 0;
 
     gtk_list_store_append(liststore.l, &iter);
-    gtk_list_store_set(liststore.l, &iter, 0, a->name, 1, a->interval, 2, g_time_val_to_iso8601(&time), -1);
+    gtk_list_store_set(liststore.l, &iter,
+                       0, a->name,
+                       1, a->interval,
+                       2, g_time_val_to_iso8601(&time),
+                       -1);
     i = g_slist_next(i);
   }
 
@@ -330,6 +373,11 @@ Window create_dialog()
   return dialog;
 }
 
+void notify_expired(gchar *s)
+{
+  printf("do something clever %s\n", s);
+}
+
 gboolean check_actions(gpointer data)
 {
   GSList *j;
@@ -337,8 +385,10 @@ gboolean check_actions(gpointer data)
 
   for (j = actions; j; j = g_slist_next(j)) {
     Action *a = j->data;
-    if ((now - a->lastdone)/(60*24) > a->interval)
-      printf("%s\n", a->name);
+    if (!a->expired && ((now - a->lastdone)/(60*24) > a->interval)) {
+      a->expired = TRUE;
+      notify_expired(a->name);
+    }
   }
   return TRUE;
 }

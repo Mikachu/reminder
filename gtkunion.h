@@ -28,6 +28,7 @@ typedef union {
 typedef union {
   GtkCellRenderer *r;
   GtkCellRendererText *t;
+  GtkCellRendererToggle *c;
   GObject *o;
 } Cellrenderer;
 
