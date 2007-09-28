@@ -43,3 +43,9 @@ typedef union {
   GtkTreeViewColumn *c;
   GObject *o;
 } Treeviewcolumn;
+
+typedef union {
+  GtkButton *b;
+  GtkWidget *w;
+  GObject *o;
+} Button;

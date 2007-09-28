@@ -9,6 +9,7 @@
 #include "reminder.h"
 
 GSList *actions = NULL;
+void save_actions();
 
 void cell_edited(GtkCellRendererText *cell, const gchar *path_string,
                  gchar *new_text, gpointer data)
@@ -45,7 +46,7 @@ GtkWidget *create_settings()
   const GSList *i = actions;
   GtkTreeIter iter;
 
-  /* Create a new liststore and attach it to a treeview with two text columns */
+  /* Create a new liststore and attach it to a treeview */
   liststore.l = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_INT, G_TYPE_INT);
 
   treeview.w = gtk_tree_view_new_with_model(liststore.t);
@@ -56,6 +57,7 @@ GtkWidget *create_settings()
   gtk_tree_view_insert_column(treeview.t, new_column("Interval", liststore, 1).c, -1);
   gtk_tree_view_insert_column(treeview.t, new_column("Last Done", liststore, 2).c, -1);
 
+  /* Load up our actions into the liststore */
   while (i) {
     Action *a = (Action *) (i->data);
 
@@ -64,7 +66,9 @@ GtkWidget *create_settings()
     i = g_slist_next(i);
   }
 
+  /* Put everything in a vbox */
   vbox.w = gtk_vbox_new(FALSE, 5);
+  gtk_container_set_border_width(vbox.c, 5);
   scroll.w = gtk_scrolled_window_new(NULL, NULL);
 
   gtk_scrolled_window_set_shadow_type(scroll.s, GTK_SHADOW_IN);
@@ -73,6 +77,14 @@ GtkWidget *create_settings()
 
   gtk_container_add(scroll.c, treeview.w);
   gtk_box_pack_start(vbox.b, scroll.w, TRUE, TRUE, 0);
+
+  /* Some buttons too */
+  hbox.w = gtk_hbox_new(TRUE, 5);
+  Button button;
+  button.w = gtk_button_new_with_mnemonic("_Save");
+  g_signal_connect(button.o, "clicked", G_CALLBACK(save_actions), NULL);
+  gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
+  gtk_box_pack_start(vbox.b, hbox.w, FALSE, FALSE, 0);
 
   return vbox.w;
 }
@@ -155,8 +167,8 @@ void save_actions()
   GSList *j = actions;
   GKeyFile *key_file = g_key_file_new();
 
-  if (!g_mkdir_with_parents(config_dir, 0700)) {
-    perror("reminder");
+  if (g_mkdir_with_parents(config_dir, 0700) == -1) {
+    perror("reminder: couldn't create dir");
     exit(1);
   }
 
