@@ -330,6 +330,19 @@ Window create_dialog()
   return dialog;
 }
 
+gboolean check_actions(gpointer data)
+{
+  GSList *j;
+  glong now = get_epochseconds();
+
+  for (j = actions; j; j = g_slist_next(j)) {
+    Action *a = j->data;
+    if ((now - a->lastdone)/(60*24) > a->interval)
+      printf("%s\n", a->name);
+  }
+  return TRUE;
+}
+
 int main(int argc, char *argv[])
 {
   Window dialog;
@@ -340,8 +353,12 @@ int main(int argc, char *argv[])
 
   dialog = create_dialog();
 
+  g_timeout_add_seconds(1, check_actions, NULL);
+
   gtk_widget_show_all(dialog.w);
   gtk_main();
+
+//  printf("%li\n", get_epochseconds());
 
   return 0;
 }
