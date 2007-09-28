@@ -211,8 +211,8 @@ Treeviewcolumn new_text_column(const gchar *name, Liststore store, gint c)
 
   column.c = gtk_tree_view_column_new_with_attributes(name, renderer.r, "text", c, NULL);
   g_object_set(column.o, "resizable", TRUE,
-                         "sizing", GTK_TREE_VIEW_COLUMN_FIXED,
-                         "min-width", 50,
+                         "sizing", GTK_TREE_VIEW_COLUMN_AUTOSIZE,
+                         "expand", TRUE,
                          NULL);
 
   return column;
@@ -229,9 +229,8 @@ Treeviewcolumn new_check_column(const gchar *name, Liststore store, gint c)
   g_signal_connect(renderer.o, "toggled", G_CALLBACK(cell_toggled), store.t);
 
   column.c = gtk_tree_view_column_new_with_attributes(name, renderer.r, "active", c, NULL);
-  g_object_set(column.o, "resizable", TRUE,
-                         "sizing", GTK_TREE_VIEW_COLUMN_FIXED,
-                         "min-width", 10,
+  g_object_set(column.o, "resizable", FALSE,
+                         "sizing", GTK_TREE_VIEW_COLUMN_AUTOSIZE,
                          NULL);
 
   return column;
