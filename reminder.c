@@ -8,8 +8,6 @@
 #include "gtkunion.h"
 #include "reminder.h"
 
-GSList *actions = NULL;
-
 glong get_epochseconds()
 {
   GTimeVal time;
@@ -105,7 +103,7 @@ void selected_action(Treeselection selection, Button delete)
   gtk_widget_set_sensitive(delete.w, gtk_tree_selection_get_selected(selection.s, NULL, NULL));
 }
 
-void load_actions()
+void load_actions(Liststore liststore)
 {
   gchar *config_file = g_build_filename(g_get_user_config_dir(), "reminder", "actions", NULL);
   GKeyFile *key_file = g_key_file_new();
@@ -116,29 +114,24 @@ void load_actions()
 
   gchar **action_names;
   gchar **i;
-  GSList *j;
-
-  j = actions;
-  /* Clear old list */
-  while (j) {
-    Action *action = (Action *) (j->data);
-
-    free(action->name);
-    j = g_slist_next(j);
-  }
-  g_slist_free(actions);
-  actions = NULL;
 
   /* Load new list */
   action_names = g_key_file_get_groups(key_file, NULL);
   for (i = action_names; *i; i++) {
-    Action *a;
+    Treeiter iter;
+    const gchar *name = *i;
+    gint interval = g_key_file_get_integer(key_file, *i, "interval", NULL);
+    GTimeVal lastdone;
+    lastdone.tv_sec = g_key_file_get_integer(key_file, *i, "lastdone", NULL);
+    lastdone.tv_usec = 0;
 
-    a = malloc(sizeof(Action));
-    a->name = *i;
-    a->interval = g_key_file_get_integer(key_file, *i, "interval", NULL);
-    a->lastdone = g_key_file_get_integer(key_file, *i, "lastdone", NULL);
-    actions = g_slist_append(actions, a);
+    gtk_list_store_append(liststore.l, &iter);
+    gtk_list_store_set(liststore.l, &iter,
+                       0, name,
+                       1, interval,
+                       2, g_time_val_to_iso8601(&lastdone),
+                       3, FALSE,
+                       -1);
   }
   /* The strings in this array are saved in a->name so don't free them
    * with g_strfreev */
@@ -162,14 +155,10 @@ void write_keyfile(GKeyFile *key_file, const gchar *config_file)
   g_free(contents);
 }
 
-/* This function first clears the action list
- * then fills it in from the list store
- * then stores the list in the keyfile */
 void save_actions(Button button, Treeview treeview)
 {
   gchar *config_dir = g_build_filename(g_get_user_config_dir(), "reminder", NULL);
   gchar *config_file = g_build_filename(g_get_user_config_dir(), "reminder", "actions", NULL);
-  GSList *j;
   GKeyFile *key_file = g_key_file_new();
   Liststore liststore;
   Treeiter iter;
@@ -180,39 +169,28 @@ void save_actions(Button button, Treeview treeview)
     exit(1);
   }
 
-  for (j = actions; j; j = g_slist_next(j)) {
-    Action *a = (Action *) (j->data);
-    free(a->name);
-  }
-  g_slist_free(actions);
-  actions = NULL;
-
   liststore.t = gtk_tree_view_get_model(treeview.t);
   valid = gtk_tree_model_get_iter_first(liststore.t, &iter);
 
   while (valid) {
-    GTimeVal time;
+    GTimeVal lastdone;
     Action *a;
-    const gchar *iso;
+    const gchar *lastdone_iso, *name;
+    gint interval;
+    gboolean expired;
     
     a = malloc(sizeof(Action));
     gtk_tree_model_get(liststore.t, &iter,
-                       0, &a->name,
-                       1, &a->interval,
-                       2, &iso,
-                       3, &a->expired,
+                       0, &name,
+                       1, &interval,
+                       2, &lastdone_iso,
+                       3, &expired,
                        -1);
-    g_time_val_from_iso8601(iso, &time);
-    a->lastdone = time.tv_sec;
-    actions = g_slist_append(actions, a);
+    g_time_val_from_iso8601(lastdone_iso, &lastdone);
+    g_key_file_set_integer(key_file, name, "interval", interval);
+    g_key_file_set_integer(key_file, name, "lastdone", lastdone.tv_sec);
+    g_key_file_set_integer(key_file, name, "expired", expired);
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
-  }
-
-  for (j = actions; j; j = g_slist_next(j)) {
-    Action *a = (Action *) (j->data);
-
-    g_key_file_set_integer(key_file, a->name, "interval", a->interval);
-    g_key_file_set_integer(key_file, a->name, "lastdone", a->lastdone);
   }
 
   write_keyfile(key_file, config_file);
@@ -259,7 +237,7 @@ Treeviewcolumn new_check_column(const gchar *name, Liststore store, gint c)
   return column;
 }
 
-void notify_expired(gchar *s)
+void notify_expired(const gchar *s)
 {
   printf("do something clever %s\n", s);
 }
@@ -268,25 +246,29 @@ void notify_expired(gchar *s)
  * use the list store everywhere anyway */
 gboolean check_actions(Liststore liststore)
 {
-  GSList *j;
+  Treeiter iter;
+  gboolean valid;
   glong now = get_epochseconds();
 
-  for (j = actions; j; j = g_slist_next(j)) {
-    Action *a = j->data;
-    const gchar *iso;
-    GTimeVal time;
+  valid = gtk_tree_model_get_iter_first(liststore.t, &iter);
+  while (valid) {
+    const gchar *lastdone_iso, *name;
+    gboolean expired;
+    gint interval;
+    GTimeVal lastdone;
     
-    gtk_tree_model_get(liststore.t, &a->iter,
-                       2, &iso,
-                       3, &a->expired,
+    gtk_tree_model_get(liststore.t, &iter,
+                       0, &name,
+                       1, &interval,
+                       2, &lastdone_iso,
+                       3, &expired,
                        -1);
-    g_time_val_from_iso8601(iso, &time);
-    a->lastdone = time.tv_sec;
-    if (!a->expired && ((now - a->lastdone)/(60*24) > a->interval)) {
-      a->expired = TRUE;
-      gtk_list_store_set(liststore.l, &a->iter, 3, TRUE, -1);
-      notify_expired(a->name);
+    g_time_val_from_iso8601(lastdone_iso, &lastdone);
+    if (!expired && ((now - lastdone.tv_sec)/(60*24) > interval)) {
+      gtk_list_store_set(liststore.l, &iter, 3, TRUE, -1);
+      notify_expired(name);
     }
+    valid = gtk_tree_model_iter_next(liststore.t, &iter);
   }
   return TRUE;
 }
@@ -298,7 +280,6 @@ Widget create_settings()
   Scrolledwindow scroll;
   Treeview treeview;
   Liststore liststore;
-  const GSList *i = actions;
   Treeiter iter;
   Treeselection selection;
 
@@ -315,23 +296,9 @@ Widget create_settings()
   gtk_tree_view_insert_column(treeview.t, new_check_column("Expired", liststore, 3).c, -1);
 
   /* Load up our actions into the liststore */
-  while (i) {
-    Action *a = (Action *) (i->data);
-    GTimeVal time;
-    time.tv_sec = a->lastdone;
-    time.tv_usec = 0;
+  load_actions(liststore);
 
-    gtk_list_store_append(liststore.l, &iter);
-    gtk_list_store_set(liststore.l, &iter,
-                       0, a->name,
-                       1, a->interval,
-                       2, g_time_val_to_iso8601(&time),
-                       -1);
-    a->iter = iter;
-    i = g_slist_next(i);
-  }
-
-  g_timeout_add_seconds(1, check_actions, liststore.t);
+  g_timeout_add_seconds(1, (GSourceFunc)check_actions, liststore.t);
 
   /* Put everything in a vbox */
   vbox.w = gtk_vbox_new(FALSE, 5);
@@ -417,8 +384,6 @@ int main(int argc, char *argv[])
   Window dialog;
 
   gtk_init(&argc, &argv);
-
-  load_actions();
 
   dialog = create_dialog();
 
