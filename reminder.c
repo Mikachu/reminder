@@ -9,6 +9,9 @@
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
 #include <X11/Xlib.h>
+#include "Idle.xpm"
+#include "Idle.xbm"
+#include <X11/extensions/shape.h>
 
 /* nicer gtk interface */
 #include "gtkunion.h"
@@ -385,6 +388,10 @@ void create_dockapp(Gtkwindow dialog, int argc, char *argv[])
   Plug dockchild;
   Window dockapp;
   XWMHints *wm_hints;
+  GtkWidget *idle;
+  GdkPixmap *icon;
+  GdkBitmap *icon_mask;
+  Pixmap xmask;
 
   dockapp = XCreateSimpleWindow(GDK_DISPLAY(), GDK_ROOT_WINDOW(), 0, 0, 64, 24, 0, 0, 0);
   wm_hints = XAllocWMHints();
@@ -401,9 +408,21 @@ void create_dockapp(Gtkwindow dialog, int argc, char *argv[])
 
   button.w = gtk_button_new_with_label("Reminder");
   g_signal_connect(button.o, "clicked", G_CALLBACK(gtk_widget_show_all_data), dialog.o);
-  gtk_container_add(dockchild.c, button.w);
+//  gtk_container_add(dockchild.c, button.w);
   gtk_button_set_relief(button.b, GTK_RELIEF_NONE);
   gtk_window_set_default_size(dockchild.d, 64, 24);
+
+  gtk_widget_realize(dockchild.w);
+  icon_mask = gdk_bitmap_create_from_data(dockchild.w->window,
+                                          Idle_bits, Idle_width, Idle_height);
+  icon = gdk_pixmap_create_from_xpm_d(dockchild.w->window, NULL, NULL, Idle_xpm);
+  idle = gtk_image_new_from_pixmap(icon, icon_mask);
+  gtk_container_add(dockchild.c, idle);
+  gdk_window_shape_combine_mask(dockchild.w->window, icon_mask, 0, 0);
+  xmask = XCreateBitmapFromData(GDK_DISPLAY(), GDK_ROOT_WINDOW(),
+                                Idle_bits, Idle_width, Idle_height);
+  XShapeCombineMask(GDK_DISPLAY(), dockapp, ShapeBounding, 0, 0, xmask, ShapeSet);
+  g_signal_connect(idle, "button-release-event", G_CALLBACK(gtk_widget_show_all_data), dialog.o);
 
   gtk_widget_show_all(dockchild.w);
 

@@ -63,6 +63,7 @@ typedef union {
 typedef union {
   GtkButton *b;
   GtkWidget *w;
+  GtkContainer *c;
   GObject *o;
 } Button;
 
