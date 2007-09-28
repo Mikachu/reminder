@@ -28,12 +28,42 @@ void cell_edited(GtkCellRendererText *cell, const gchar *path_string,
   gtk_list_store_set(store.l, &iter, column, column > 0 ? GINT_TO_POINTER(atoi(new_text)) : new_text, -1);
 }
 
-void new_action()
+void new_action(GtkButton *button, gpointer data)
 {
+  Treeview treeview;
+  Liststore liststore;
+  GtkTreeIter iter;
+  GtkTreeSelection *selection;
+  GtkTreePath *path;
+
+  treeview.t = GTK_TREE_VIEW(data);
+  selection = gtk_tree_view_get_selection(treeview.t);
+  liststore.t = gtk_tree_view_get_model(treeview.t);
+  if (gtk_tree_selection_get_selected(selection, NULL, &iter))
+    gtk_list_store_insert_before(liststore.l, &iter, &iter);
+  else
+    gtk_list_store_insert_before(liststore.l, &iter, NULL);
+  gtk_list_store_set(liststore.l, &iter, 0, "", 1, GINT_TO_POINTER(0), 2, GINT_TO_POINTER(0), -1);
+  path = gtk_tree_model_get_path(liststore.t, &iter);
+  gtk_tree_selection_select_path(selection, path);
+  gtk_tree_view_scroll_to_cell(treeview.t, path, NULL, FALSE, 0.0, 0.0);
+
+  gtk_tree_path_free(path);
 }
 
-void delete_selected_action()
+void delete_selected_action(GtkButton *button, gpointer data)
 {
+  Treeview treeview;
+  Liststore liststore;
+  GtkTreeIter iter;
+  GtkTreeSelection *selection;
+
+  treeview.t = GTK_TREE_VIEW(data);
+  selection = gtk_tree_view_get_selection(treeview.t);
+  if (gtk_tree_selection_get_selected(selection, NULL, &iter)) {
+    liststore.t = gtk_tree_view_get_model(treeview.t);
+    gtk_list_store_remove(liststore.l, &iter);
+  }
 }
 
 void selected_action(GtkTreeSelection *selection, gpointer data)
@@ -102,6 +132,9 @@ void write_keyfile(GKeyFile *key_file, const gchar *config_file)
   g_free(contents);
 }
 
+/* This function first clears the action list
+ * then fills it in from the list store
+ * then stores the list in the keyfile */
 void save_actions(GtkButton *button, gpointer data)
 {
   gchar *config_dir = g_build_filename(g_get_user_config_dir(), "reminder", NULL);
@@ -225,12 +258,12 @@ GtkWidget *create_settings()
 
   /* New button */
   button.w = gtk_button_new_with_mnemonic("_New");
-  g_signal_connect(button.o, "clicked", G_CALLBACK(new_action), NULL);
+  g_signal_connect(button.o, "clicked", G_CALLBACK(new_action), treeview.t);
   gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
 
   /* Delete button */
   button.w = gtk_button_new_with_mnemonic("_Delete");
-  g_signal_connect(button.o, "clicked", G_CALLBACK(delete_selected_action), NULL);
+  g_signal_connect(button.o, "clicked", G_CALLBACK(delete_selected_action), treeview.t);
   gtk_widget_set_sensitive(button.w, FALSE);
   gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
 
