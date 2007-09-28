@@ -5,9 +5,16 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* dockapp stuff */
+#include <gdk/gdk.h>
+#include <gdk/gdkx.h>
+#include <X11/Xlib.h>
+
+/* nicer gtk interface */
 #include "gtkunion.h"
 
-Window dialog;
+Gtkwindow dialog;
+Button button;
 
 glong get_epochseconds()
 {
@@ -56,7 +63,7 @@ void cell_edited(Cellrenderer renderer, const gchar *path_string,
   switch (column) {
     case 2: /* last done date */
       if (!g_time_val_from_iso8601(new_text, &check)) {
-        Window message;
+        Gtkwindow message;
         message.w = gtk_message_dialog_new(dialog.d, GTK_DIALOG_DESTROY_WITH_PARENT
                                | GTK_DIALOG_MODAL, GTK_MESSAGE_WARNING, GTK_BUTTONS_OK,
                                "The entered date is in an invalid format, not using.");
@@ -245,16 +252,11 @@ Treeviewcolumn new_check_column(const gchar *name, Liststore store, gint c)
   return column;
 }
 
-void notify_expired(const gchar *s)
-{
-  gtk_widget_show_all(dialog.w);
-  printf("do something clever %s\n", s);
-}
-
 gboolean check_actions(Liststore liststore)
 {
   Treeiter iter;
   gboolean valid;
+  gboolean all_handled = TRUE;
   glong now = get_epochseconds();
 
   valid = gtk_tree_model_get_iter_first(liststore.t, &iter);
@@ -270,14 +272,19 @@ gboolean check_actions(Liststore liststore)
                        2, &lastdone_iso,
                        3, &expired,
                        -1);
-    if (!g_time_val_from_iso8601(lastdone_iso, &lastdone) ||
-        !expired && ((now - lastdone.tv_sec)/(60*60) >= interval))
+    g_time_val_from_iso8601(lastdone_iso, &lastdone);
+    if (expired)
+      all_handled = FALSE;
+    else if ((now - lastdone.tv_sec)/(60*60) >= interval)
     {
       gtk_list_store_set(liststore.l, &iter, 3, TRUE, -1);
-      notify_expired(name);
+      gtk_button_set_label(button.b, name);
+      all_handled = FALSE;
     }
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
   }
+  if (all_handled)
+    gtk_button_set_label(button.b, "Reminder");
   return TRUE;
 }
 
@@ -349,53 +356,65 @@ Widget create_settings()
   return vbox.w;
 }
 
-gboolean handle_reply(Window confirm, gint response, Window dialog)
-{
-  if (response == GTK_RESPONSE_OK)
-    gtk_widget_hide(dialog.w);
-
-  gtk_widget_destroy(confirm.w);
-  
-  return TRUE;
-}
-
-gboolean confirm_close(Window dialog, gpointer event, gpointer data)
-{
-  Window confirm;
-
-  confirm.w =
-    gtk_message_dialog_new(dialog.d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
-                           GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL,
-                           "This window will not open until an event expired.\n"
-                           "You will not be able to save any unsaved changes until "
-                           "an event expires.");
-  g_signal_connect(confirm.o, "response", G_CALLBACK(handle_reply), dialog.w);
-  gtk_widget_show_all(confirm.w);
-  return TRUE;
-}
-
-Window create_dialog()
+Gtkwindow create_dialog()
 {
   dialog.w = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(dialog.d, "Reminder");
   gtk_window_set_default_size(dialog.d, 400, 600);
   gtk_window_set_position(dialog.d, GTK_WIN_POS_CENTER);
-  g_signal_connect(dialog.w, "delete-event", G_CALLBACK(confirm_close), 0);
+  g_signal_connect(dialog.o, "delete-event", G_CALLBACK(gtk_widget_hide), 0);
 
   gtk_container_add(dialog.c, create_settings());
 
   return dialog;
 }
 
+void gtk_widget_show_all_data(Button button, Gtkwindow dialog)
+{
+  gtk_widget_show_all(dialog.w);
+}
+
+/* I'm sorry if this code offends anyone :) */
+void create_dockapp(Gtkwindow dialog, int argc, char *argv[])
+{
+  Plug dockchild;
+  Window dockapp;
+  XWMHints *wm_hints;
+
+  dockapp = XCreateSimpleWindow(GDK_DISPLAY(), GDK_ROOT_WINDOW(), 0, 0, 64, 24, 0, 0, 0);
+  wm_hints = XAllocWMHints();
+  wm_hints->initial_state = WithdrawnState;
+  wm_hints->icon_window = dockapp;
+  wm_hints->window_group = dockapp;
+  wm_hints->flags = StateHint | IconWindowHint;
+  XSetWMHints(GDK_DISPLAY(), dockapp, wm_hints);
+  XFree(wm_hints);
+  XSetCommand(GDK_DISPLAY(), dockapp, argv, argc);
+
+  dockchild.w = gtk_plug_new(0);
+  gtk_widget_add_events(dockchild.w, GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
+
+  button.w = gtk_button_new_with_label("Reminder");
+  g_signal_connect(button.o, "clicked", G_CALLBACK(gtk_widget_show_all_data), dialog.o);
+  gtk_container_add(dockchild.c, button.w);
+  gtk_button_set_relief(button.b, GTK_RELIEF_NONE);
+  gtk_window_set_default_size(dockchild.d, 64, 24);
+
+  gtk_widget_show_all(dockchild.w);
+
+  XReparentWindow(GDK_DISPLAY(), GDK_WINDOW_XID(dockchild.w->window), dockapp, 0, 0);
+  XMapWindow(GDK_DISPLAY(), GDK_WINDOW_XID(dockchild.w->window));
+  XMapWindow(GDK_DISPLAY(), dockapp);
+}
+
 int main(int argc, char *argv[])
 {
-  Window dialog;
-
   gtk_init(&argc, &argv);
 
   dialog = create_dialog();
 
-  gtk_widget_show_all(dialog.w);
+  create_dockapp(dialog, argc, argv);
+
   gtk_main();
 
   return 0;

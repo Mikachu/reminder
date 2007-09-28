@@ -3,7 +3,15 @@ typedef union {
   GtkWindow *d;
   GtkContainer *c;
   GObject *o;
-} Window;
+} Gtkwindow;
+
+typedef union {
+  GtkPlug *p;
+  GtkWindow *d;
+  GtkContainer *c;
+  GtkWidget *w;
+  GObject *o;
+} Plug;
 
 typedef union {
   GtkListStore *l;
