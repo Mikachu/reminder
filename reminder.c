@@ -7,11 +7,20 @@
 
 #include "gtkunion.h"
 
+Window dialog;
+
 glong get_epochseconds()
 {
   GTimeVal time;
   g_get_current_time(&time);
   return time.tv_sec;
+}
+
+const gchar *get_iso8601()
+{
+  GTimeVal time;
+  g_get_current_time(&time);
+  return g_time_val_to_iso8601(&time);
 }
 
 void cell_toggled(Cellrenderer renderer, const gchar *path_string,
@@ -43,14 +52,24 @@ void cell_edited(Cellrenderer renderer, const gchar *path_string,
   Treeiter iter;
   Treepath path = gtk_tree_path_new_from_string(path_string);
   gint column;
+  GTimeVal check;
 
   column = GPOINTER_TO_INT(g_object_get_data(renderer.o, "column"));
 
   gtk_tree_model_get_iter(liststore.t, &iter, path);
 
   switch (column) {
-    case 0: /* name */
     case 2: /* last done date */
+      if (!g_time_val_from_iso8601(new_text, &check)) {
+        Window message;
+        message.w = gtk_message_dialog_new(dialog.d, GTK_DIALOG_DESTROY_WITH_PARENT
+                               | GTK_DIALOG_MODAL, GTK_MESSAGE_WARNING, GTK_BUTTONS_OK,
+                               "The entered date is in an invalid format, not using.");
+        g_signal_connect(message.o, "response", G_CALLBACK(gtk_widget_destroy), message.w);
+        gtk_widget_show_all(message.w);
+        break;
+      } /* fall through */
+    case 0: /* name */
       gtk_list_store_set(liststore.l, &iter, column, new_text, -1);
       break;
     case 1: /* interval */
@@ -75,7 +94,7 @@ void new_action(Button button, Treeview treeview)
   gtk_list_store_set(liststore.l, &iter,
                      0, "",
                      1, GINT_TO_POINTER(24),
-                     2, GINT_TO_POINTER(get_epochseconds),
+                     2, get_iso8601(),
                      -1);
   path = gtk_tree_model_get_path(liststore.t, &iter);
   gtk_tree_selection_select_path(selection.s, path);
@@ -180,9 +199,11 @@ void save_actions(Button button, Treeview treeview)
                        2, &lastdone_iso,
                        3, &expired,
                        -1);
-    g_key_file_set_integer(key_file, name, "interval", interval);
-    g_key_file_set_string(key_file, name, "lastdone", lastdone_iso);
-    g_key_file_set_integer(key_file, name, "expired", expired);
+    if (*name) {
+      g_key_file_set_integer(key_file, name, "interval", interval);
+      g_key_file_set_string(key_file, name, "lastdone", lastdone_iso);
+      g_key_file_set_integer(key_file, name, "expired", expired);
+    }
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
   }
 
@@ -254,7 +275,7 @@ gboolean check_actions(Liststore liststore)
                        3, &expired,
                        -1);
     if (!g_time_val_from_iso8601(lastdone_iso, &lastdone) ||
-        !expired && ((now - lastdone.tv_sec)/(60*24) > interval))
+        !expired && ((now - lastdone.tv_sec)/60 > interval))
     {
       gtk_list_store_set(liststore.l, &iter, 3, TRUE, -1);
       notify_expired(name);
@@ -357,8 +378,6 @@ gboolean confirm_close(Window dialog, gpointer event, gpointer data)
 
 Window create_dialog()
 {
-  Window dialog;
-
   dialog.w = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(dialog.d, "Reminder");
   gtk_window_set_default_size(dialog.d, 400, 600);
