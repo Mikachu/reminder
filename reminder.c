@@ -275,7 +275,7 @@ gboolean check_actions(Liststore liststore)
                        3, &expired,
                        -1);
     if (!g_time_val_from_iso8601(lastdone_iso, &lastdone) ||
-        !expired && ((now - lastdone.tv_sec)/60 > interval))
+        !expired && ((now - lastdone.tv_sec)/60 >= interval))
     {
       gtk_list_store_set(liststore.l, &iter, 3, TRUE, -1);
       notify_expired(name);
