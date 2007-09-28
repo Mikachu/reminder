@@ -356,7 +356,7 @@ Widget create_settings()
 
 gboolean handle_reply(Window confirm, gint response, Window dialog)
 {
-  if (response == GTK_RESPONSE_YES)
+  if (response == GTK_RESPONSE_OK)
     gtk_widget_hide(dialog.w);
 
   gtk_widget_destroy(confirm.w);
@@ -370,8 +370,10 @@ gboolean confirm_close(Window dialog, gpointer event, gpointer data)
 
   confirm.w =
     gtk_message_dialog_new(dialog.d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
-                           GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
-                           "This window will not open until an event expired, close?");
+                           GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL,
+                           "This window will not open until an event expired.\n"
+                           "You will not be able to save any unsaved changes until "
+                           "an event expires.");
   g_signal_connect(confirm.o, "response", G_CALLBACK(handle_reply), dialog.w);
   gtk_widget_show_all(confirm.w);
   return TRUE;
