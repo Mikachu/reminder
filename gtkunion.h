@@ -10,6 +10,27 @@ typedef union {
 } Liststore;
 
 typedef union {
+  GtkTreeView *t;
+  GtkWidget *w;
+} Treeview;
+
+typedef union {
+  GtkTreeViewColumn *c;
+  GObject *o;
+} Treeviewcolumn;
+
+typedef union {
+  GtkTreeSelection *s;
+  GObject *o;
+} Treeselection;
+
+typedef union {
+  GtkCellRenderer *r;
+  GtkCellRendererText *t;
+  GObject *o;
+} Cellrenderer;
+
+typedef union {
   GtkHBox *v;
   GtkContainer *c;
   GtkBox *b;
@@ -28,22 +49,6 @@ typedef union {
   GtkWidget *w;
   GtkContainer *c;
 } Scrolledwindow;
-
-typedef union {
-  GtkTreeView *t;
-  GtkWidget *w;
-} Treeview;
-
-typedef union {
-  GtkCellRenderer *r;
-  GtkCellRendererText *t;
-  GObject *o;
-} Cellrenderer;
-
-typedef union {
-  GtkTreeViewColumn *c;
-  GObject *o;
-} Treeviewcolumn;
 
 typedef union {
   GtkButton *b;
