@@ -14,7 +14,11 @@ void save_actions();
 void cell_edited(GtkCellRendererText *cell, const gchar *path_string,
                  gchar *new_text, gpointer data)
 {
-  /* Update stuff from here */
+  printf("%s\n", new_text);
+}
+
+void new_action()
+{
 }
 
 Treeviewcolumn new_column(const gchar *name, Liststore store, gint c)
@@ -81,9 +85,17 @@ GtkWidget *create_settings()
   /* Some buttons too */
   hbox.w = gtk_hbox_new(TRUE, 5);
   Button button;
+
+  /* Save button */
   button.w = gtk_button_new_with_mnemonic("_Save");
   g_signal_connect(button.o, "clicked", G_CALLBACK(save_actions), NULL);
   gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
+
+  /* New button */
+  button.w = gtk_button_new_with_mnemonic("_New");
+  g_signal_connect(button.o, "clicked", G_CALLBACK(new_action), NULL);
+  gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
+
   gtk_box_pack_start(vbox.b, hbox.w, FALSE, FALSE, 0);
 
   return vbox.w;
@@ -95,6 +107,8 @@ Window create_dialog()
 
   dialog.d = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(dialog.w, "Reminder");
+  gtk_window_set_default_size(dialog.w, 400, 600);
+  gtk_window_set_position(dialog.w, GTK_WIN_POS_CENTER);
   g_signal_connect(dialog.d, "delete-event", G_CALLBACK(exit /* Some function that asks for saving any changes before closing */), 0);
 
   gtk_container_add(dialog.c, create_settings());
