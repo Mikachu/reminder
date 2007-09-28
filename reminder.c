@@ -331,11 +331,6 @@ Widget create_settings()
   hbox.w = gtk_hbox_new(TRUE, 5);
   Button button;
 
-  /* Save button */
-  button.w = gtk_button_new_with_mnemonic("_Save");
-  g_signal_connect(button.o, "clicked", G_CALLBACK(save_actions), treeview.t);
-  gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
-
   /* New button */
   button.w = gtk_button_new_with_mnemonic("_New");
   g_signal_connect(button.o, "clicked", G_CALLBACK(new_action), treeview.t);
@@ -350,6 +345,16 @@ Widget create_settings()
   /* Pass the delete button so we can toggle sensitivity when columns are selected */
   selection.s = gtk_tree_view_get_selection(treeview.t);
   g_signal_connect(selection.o, "changed", G_CALLBACK(selected_action), button.w);
+
+  /* Save button */
+  button.w = gtk_button_new_with_mnemonic("_Save");
+  g_signal_connect(button.o, "clicked", G_CALLBACK(save_actions), treeview.t);
+  gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
+
+  /* Quit button */
+  button.w = gtk_button_new_with_mnemonic("_Quit");
+  g_signal_connect(button.o, "clicked", G_CALLBACK(gtk_main_quit), 0);
+  gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
 
   gtk_box_pack_start(vbox.b, hbox.w, FALSE, FALSE, 0);
 
