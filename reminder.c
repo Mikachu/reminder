@@ -7,20 +7,22 @@
 
 /* nicer gtk interface */
 #include "gtkunion.h"
+/* prototypes */
+#include "reminder.h"
 
 /* #ifdef DOCKAPP */
 #include "dockapp.h"
 
-Gtkwindow dialog;
+static Gtkwindow dialog;
 
-glong get_epochseconds()
+glong get_epochseconds(void)
 {
   GTimeVal time;
   g_get_current_time(&time);
   return time.tv_sec;
 }
 
-const gchar *get_iso8601()
+const gchar *get_iso8601(void)
 {
   GTimeVal time;
   g_get_current_time(&time);
@@ -123,12 +125,12 @@ void load_actions(Liststore liststore)
   gchar *config_file = g_build_filename(g_get_user_config_dir(), "reminder", "actions", NULL);
   GKeyFile *key_file = g_key_file_new();
 
+  gchar **action_names;
+  gchar **i;
+
   if (!g_key_file_load_from_file(key_file, config_file, G_KEY_FILE_KEEP_COMMENTS, NULL))
     /* No config file */
     goto noconf;
-
-  gchar **action_names;
-  gchar **i;
 
   /* Load new list */
   action_names = g_key_file_get_groups(key_file, NULL);
@@ -287,7 +289,7 @@ gboolean check_actions(Liststore liststore)
   return TRUE;
 }
 
-Widget create_settings()
+Widget create_settings(void)
 {
   Vbox vbox; /* This contains all elements */
   Hbox hbox; /* This contains the buttons at the bottom */
@@ -295,6 +297,7 @@ Widget create_settings()
   Treeview treeview;
   Liststore liststore;
   Treeselection selection;
+  Button button;
 
   /* Create a new liststore and attach it to a treeview */
   liststore.l = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_INT, G_TYPE_STRING, G_TYPE_BOOLEAN);
@@ -327,7 +330,6 @@ Widget create_settings()
 
   /* Some buttons too, use the same pointer for all */
   hbox.w = gtk_hbox_new(TRUE, 5);
-  Button button;
 
   /* New button */
   button.w = gtk_button_new_with_mnemonic("_New");
@@ -351,7 +353,7 @@ Widget create_settings()
 
   /* Quit button */
   button.w = gtk_button_new_with_mnemonic("_Quit");
-  g_signal_connect(button.o, "clicked", G_CALLBACK(gtk_main_quit), 0);
+  g_signal_connect(button.o, "clicked", G_CALLBACK(gtk_main_quit), NULL);
   gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
 
   gtk_box_pack_start(vbox.b, hbox.w, FALSE, FALSE, 0);
@@ -359,13 +361,13 @@ Widget create_settings()
   return vbox.w;
 }
 
-Gtkwindow create_dialog()
+Gtkwindow create_dialog(void)
 {
   dialog.w = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(dialog.d, "Reminder");
   gtk_window_set_default_size(dialog.d, 400, 600);
   gtk_window_set_position(dialog.d, GTK_WIN_POS_CENTER);
-  g_signal_connect(dialog.o, "delete-event", G_CALLBACK(gtk_widget_hide), 0);
+  g_signal_connect(dialog.o, "delete-event", G_CALLBACK(gtk_widget_hide), NULL);
 
   gtk_container_add(dialog.c, create_settings());
 

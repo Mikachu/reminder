@@ -17,16 +17,20 @@
 
 /* nicer gtk interface */
 #include "gtkunion.h"
+/* prototypes */
+#include "dockapp.h"
 
-Plug dockchild;
-Window dockapp;
-GdkPixmap *alert_pixmap;
-GdkBitmap *alert_mask;
-Pixmap     alert_xmask;
-GdkPixmap *idle_pixmap;
-GdkBitmap *idle_mask;
-Pixmap     idle_xmask;
-Image image;
+static Plug dockchild;
+static Window dockapp;
+static GdkPixmap *alert_pixmap;
+static GdkBitmap *alert_mask;
+static Pixmap     alert_xmask;
+static GdkPixmap *idle_pixmap;
+static GdkBitmap *idle_mask;
+static Pixmap     idle_xmask;
+static Image image;
+
+gboolean handle_dock_event(Window dockapp, GdkEventButton *event, Gtkwindow dialog);
 
 void set_icon_alert(gboolean alert)
 {
