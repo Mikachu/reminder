@@ -47,11 +47,9 @@ void set_icon_alert(gboolean alert)
 {
   if (alert) {
     gtk_image_set_from_pixmap(image.i, alert_pixmap, alert_mask);
-    gdk_window_shape_combine_mask(dockchild.w->window, alert_mask, 0, 0);
     XShapeCombineMask(GDK_DISPLAY(), dockapp, ShapeBounding, 0, 0, alert_xmask, ShapeSet);
   } else {
     gtk_image_set_from_pixmap(image.i, idle_pixmap, idle_mask);
-    gdk_window_shape_combine_mask(dockchild.w->window, idle_mask, 0, 0);
     XShapeCombineMask(GDK_DISPLAY(), dockapp, ShapeBounding, 0, 0, idle_xmask, ShapeSet);
   }
 }
