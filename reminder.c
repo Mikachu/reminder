@@ -22,10 +22,11 @@ glong get_epochseconds(void)
   return time.tv_sec;
 }
 
-const gchar *get_iso8601(void)
+const gchar *tv_sec_to_iso8601(gint tv_sec)
 {
   GTimeVal time;
-  g_get_current_time(&time);
+  time.tv_sec = tv_sec;
+  time.tv_usec = 0;
   return g_time_val_to_iso8601(&time);
 }
 
@@ -35,11 +36,14 @@ void cell_toggled(Cellrenderer renderer, const gchar *path_string,
 {
   Treeiter iter;
   Treepath path = gtk_tree_path_new_from_string(path_string);
+  GTimeVal time;
 
+  g_get_current_time(&time);
   gtk_tree_model_get_iter(liststore.t, &iter, path);
   gtk_list_store_set(liststore.l, &iter,
-                     2, get_iso8601(),
+                     2, g_time_val_to_iso8601(&time),
                      3, FALSE,
+                     4, time.tv_sec,
                      -1);
 
   gtk_tree_path_free(path);
@@ -51,7 +55,7 @@ void cell_edited(Cellrenderer renderer, const gchar *path_string,
   Treeiter iter;
   Treepath path = gtk_tree_path_new_from_string(path_string);
   gint column;
-  GTimeVal check;
+  GTimeVal time;
 
   column = GPOINTER_TO_INT(g_object_get_data(renderer.o, "column"));
 
@@ -59,7 +63,7 @@ void cell_edited(Cellrenderer renderer, const gchar *path_string,
 
   switch (column) {
     case 2: /* last done date */
-      if (!g_time_val_from_iso8601(new_text, &check)) {
+      if (!g_time_val_from_iso8601(new_text, &time)) {
         Gtkwindow message;
         message.w = gtk_message_dialog_new(dialog.d, GTK_DIALOG_DESTROY_WITH_PARENT
                                | GTK_DIALOG_MODAL, GTK_MESSAGE_WARNING, GTK_BUTTONS_OK,
@@ -67,12 +71,14 @@ void cell_edited(Cellrenderer renderer, const gchar *path_string,
         g_signal_connect(message.o, "response", G_CALLBACK(gtk_widget_destroy), message.w);
         gtk_widget_show_all(message.w);
         break;
-      } /* fall through */
+      }
+      gtk_list_store_set(liststore.l, &iter, 4, time.tv_sec, -1);
+      /* fall through */
     case 0: /* name */
       gtk_list_store_set(liststore.l, &iter, column, new_text, -1);
       break;
     case 1: /* interval */
-      gtk_list_store_set(liststore.l, &iter, column, GINT_TO_POINTER(atoi(new_text)), -1);
+      gtk_list_store_set(liststore.l, &iter, 1, GINT_TO_POINTER(atoi(new_text)), -1);
       break;
   }
 }
@@ -83,7 +89,9 @@ void new_action(Button button, Treeview treeview)
   Treeiter iter;
   Treeselection selection;
   Treepath path;
+  GTimeVal time;
 
+  g_get_current_time(&time);
   selection.s = gtk_tree_view_get_selection(treeview.t);
   liststore.t = gtk_tree_view_get_model(treeview.t);
   if (gtk_tree_selection_get_selected(selection.s, NULL, &iter))
@@ -93,7 +101,9 @@ void new_action(Button button, Treeview treeview)
   gtk_list_store_set(liststore.l, &iter,
                      0, "",
                      1, GINT_TO_POINTER(24),
-                     2, get_iso8601(),
+                     2, g_time_val_to_iso8601(&time),
+                     3, FALSE,
+                     4, time.tv_sec,
                      -1);
   path = gtk_tree_model_get_path(liststore.t, &iter);
   gtk_tree_selection_select_path(selection.s, path);
@@ -136,16 +146,17 @@ void load_actions(Liststore liststore)
   action_names = g_key_file_get_groups(key_file, NULL);
   for (i = action_names; *i; i++) {
     Treeiter iter;
-    const gchar *name = *i, *lastdone_iso;
+    const gchar *name = *i;
     gint interval = g_key_file_get_integer(key_file, *i, "interval", NULL);
-    lastdone_iso = g_key_file_get_string(key_file, *i, "lastdone", NULL);
+    gint lastdone = g_key_file_get_integer(key_file, *i, "lastdone", NULL);
 
     gtk_list_store_append(liststore.l, &iter);
     gtk_list_store_set(liststore.l, &iter,
                        0, name,
                        1, interval,
-                       2, lastdone_iso,
+                       2, tv_sec_to_iso8601(lastdone),
                        3, FALSE,
+                       4, lastdone,
                        -1);
   }
   /* The strings in this array are saved in the liststore so don't free them
@@ -188,19 +199,19 @@ void save_actions(Button button, Treeview treeview)
   valid = gtk_tree_model_get_iter_first(liststore.t, &iter);
 
   while (valid) {
-    const gchar *lastdone_iso, *name;
-    gint interval;
+    const gchar *name;
+    gint interval, lastdone;
     gboolean expired;
     
     gtk_tree_model_get(liststore.t, &iter,
                        0, &name,
                        1, &interval,
-                       2, &lastdone_iso,
                        3, &expired,
+                       4, &lastdone,
                        -1);
     if (*name) {
       g_key_file_set_integer(key_file, name, "interval", interval);
-      g_key_file_set_string(key_file, name, "lastdone", lastdone_iso);
+      g_key_file_set_integer(key_file, name, "lastdone", lastdone);
       g_key_file_set_integer(key_file, name, "expired", expired);
     }
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
@@ -249,10 +260,8 @@ Treeviewcolumn new_check_column(const gchar *name, Liststore store, gint c)
   return column;
 }
 
-/* This function is horrible for at least two reasons:
- * 1) It is triggered every second
- * 2) It parses the last done string every time instead of using a cached value somewhere
- */
+/* This function should not be run every second.
+ * It should be possible to set up some g_timeout_add() for each action. */
 gboolean check_actions(Liststore liststore)
 {
   Treeiter iter;
@@ -262,21 +271,19 @@ gboolean check_actions(Liststore liststore)
 
   valid = gtk_tree_model_get_iter_first(liststore.t, &iter);
   while (valid) {
-    const gchar *lastdone_iso, *name;
+    const gchar *name;
     gboolean expired;
-    gint interval;
-    GTimeVal lastdone;
+    gint interval, lastdone;
     
     gtk_tree_model_get(liststore.t, &iter,
                        0, &name,
                        1, &interval,
-                       2, &lastdone_iso,
                        3, &expired,
+                       4, &lastdone,
                        -1);
-    g_time_val_from_iso8601(lastdone_iso, &lastdone);
     if (expired)
       all_handled = FALSE;
-    else if ((now - lastdone.tv_sec)/(60*60) >= interval)
+    else if ((now - lastdone)/(60*60) >= interval)
     {
       gtk_list_store_set(liststore.l, &iter, 3, TRUE, -1);
       set_icon_alert(TRUE);
@@ -299,8 +306,11 @@ Widget create_settings(void)
   Treeselection selection;
   Button button;
 
-  /* Create a new liststore and attach it to a treeview */
-  liststore.l = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_INT, G_TYPE_STRING, G_TYPE_BOOLEAN);
+  /* Create a new liststore and attach it to a treeview, the fifth column is used
+   * for caching the last done date as an integer so we don't have to parse the
+   * iso8601 representation so often. */
+  liststore.l = gtk_list_store_new(5, G_TYPE_STRING, G_TYPE_INT, G_TYPE_STRING,
+                                      G_TYPE_BOOLEAN, G_TYPE_INT);
 
   treeview.w = gtk_tree_view_new_with_model(liststore.t);
   gtk_tree_view_set_rules_hint(treeview.t, TRUE);
