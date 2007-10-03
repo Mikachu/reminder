@@ -7,22 +7,38 @@
 
 /* nicer gtk interface */
 #include "gtkunion.h"
-/* prototypes */
-#include "reminder.h"
 
 /* #ifdef DOCKAPP */
 #include "dockapp.h"
 
 static Gtkwindow dialog;
 
-glong get_epochseconds(void)
+static glong get_epochseconds(void);
+static const gchar *get_iso8601(void);
+static void cell_toggled(Cellrenderer renderer, const gchar *path_string,
+                         Liststore liststore);
+static void cell_edited(Cellrenderer renderer, const gchar *path_string,
+                        gchar *new_text, Liststore liststore);
+static void new_action(Button button, Treeview treeview);
+static void delete_selected_action(Button button, Treeview treeview);
+static void selected_action(Treeselection selection, Button delete);
+static void load_actions(Liststore liststore);
+static void write_keyfile(GKeyFile *key_file, const gchar *config_file);
+static void save_actions(Button button, Treeview treeview);
+static Treeviewcolumn new_text_column(const gchar *name, Liststore store, gint c);
+static Treeviewcolumn new_check_column(const gchar *name, Liststore store, gint c);
+static gboolean check_actions(Liststore liststore);
+static Widget create_settings(void);
+static Gtkwindow create_dialog(void);
+
+static glong get_epochseconds(void)
 {
   GTimeVal time;
   g_get_current_time(&time);
   return time.tv_sec;
 }
 
-const gchar *tv_sec_to_iso8601(gint tv_sec)
+static const gchar *tv_sec_to_iso8601(gint tv_sec)
 {
   GTimeVal time;
   time.tv_sec = tv_sec;
@@ -31,7 +47,7 @@ const gchar *tv_sec_to_iso8601(gint tv_sec)
 }
 
 /* Update the last date when marking the task as done */
-void cell_toggled(Cellrenderer renderer, const gchar *path_string,
+static void cell_toggled(Cellrenderer renderer, const gchar *path_string,
                   Liststore liststore)
 {
   Treeiter iter;
@@ -49,7 +65,7 @@ void cell_toggled(Cellrenderer renderer, const gchar *path_string,
   gtk_tree_path_free(path);
 }
 
-void cell_edited(Cellrenderer renderer, const gchar *path_string,
+static void cell_edited(Cellrenderer renderer, const gchar *path_string,
                  gchar *new_text, Liststore liststore)
 {
   Treeiter iter;
@@ -83,7 +99,7 @@ void cell_edited(Cellrenderer renderer, const gchar *path_string,
   }
 }
 
-void new_action(Button button, Treeview treeview)
+static void new_action(Button button, Treeview treeview)
 {
   Liststore liststore;
   Treeiter iter;
@@ -112,7 +128,7 @@ void new_action(Button button, Treeview treeview)
   gtk_tree_path_free(path);
 }
 
-void delete_selected_action(Button button, Treeview treeview)
+static void delete_selected_action(Button button, Treeview treeview)
 {
   Liststore liststore;
   Treeiter iter;
@@ -125,12 +141,12 @@ void delete_selected_action(Button button, Treeview treeview)
   }
 }
 
-void selected_action(Treeselection selection, Button delete)
+static void selected_action(Treeselection selection, Button delete)
 {
   gtk_widget_set_sensitive(delete.w, gtk_tree_selection_get_selected(selection.s, NULL, NULL));
 }
 
-void load_actions(Liststore liststore)
+static void load_actions(Liststore liststore)
 {
   gchar *config_file = g_build_filename(g_get_user_config_dir(), "reminder", "actions", NULL);
   GKeyFile *key_file = g_key_file_new();
@@ -167,7 +183,7 @@ noconf:
   g_free(config_file);
 }
 
-void write_keyfile(GKeyFile *key_file, const gchar *config_file)
+static void write_keyfile(GKeyFile *key_file, const gchar *config_file)
 {
   char *contents = g_key_file_to_data(key_file, NULL, NULL);
   FILE *config_file_handle = fopen(config_file, "w");
@@ -181,7 +197,7 @@ void write_keyfile(GKeyFile *key_file, const gchar *config_file)
   g_free(contents);
 }
 
-void save_actions(Button button, Treeview treeview)
+static void save_actions(Button button, Treeview treeview)
 {
   gchar *config_dir = g_build_filename(g_get_user_config_dir(), "reminder", NULL);
   gchar *config_file = g_build_filename(g_get_user_config_dir(), "reminder", "actions", NULL);
@@ -223,7 +239,7 @@ void save_actions(Button button, Treeview treeview)
   g_free(config_file);
 }
 
-Treeviewcolumn new_text_column(const gchar *name, Liststore store, gint c)
+static Treeviewcolumn new_text_column(const gchar *name, Liststore store, gint c)
 {
   Treeviewcolumn column;
   Cellrenderer renderer;
@@ -242,7 +258,7 @@ Treeviewcolumn new_text_column(const gchar *name, Liststore store, gint c)
   return column;
 }
 
-Treeviewcolumn new_check_column(const gchar *name, Liststore store, gint c)
+static Treeviewcolumn new_check_column(const gchar *name, Liststore store, gint c)
 {
   Treeviewcolumn column;
   Cellrenderer renderer;
@@ -262,7 +278,7 @@ Treeviewcolumn new_check_column(const gchar *name, Liststore store, gint c)
 
 /* This function should not be run every second.
  * It should be possible to set up some g_timeout_add() for each action. */
-gboolean check_actions(Liststore liststore)
+static gboolean check_actions(Liststore liststore)
 {
   Treeiter iter;
   gboolean valid;
@@ -296,7 +312,7 @@ gboolean check_actions(Liststore liststore)
   return TRUE;
 }
 
-Widget create_settings(void)
+static Widget create_settings(void)
 {
   Vbox vbox; /* This contains all elements */
   Hbox hbox; /* This contains the buttons at the bottom */
@@ -371,7 +387,7 @@ Widget create_settings(void)
   return vbox.w;
 }
 
-Gtkwindow create_dialog(void)
+static Gtkwindow create_dialog(void)
 {
   dialog.w = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(dialog.d, "Reminder");

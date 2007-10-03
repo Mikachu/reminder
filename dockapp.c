@@ -27,7 +27,7 @@ static GdkPixmap *alert_pixmap, *idle_pixmap;
 static GdkBitmap *alert_mask, *idle_mask;
 static Pixmap alert_xmask, idle_xmask;
 
-gboolean handle_dock_event(Window dockapp, GdkEventButton *event, Gtkwindow dialog);
+static gboolean handle_dock_event(Window dockapp, GdkEventButton *event, Gtkwindow dialog);
 
 void set_icon_alert(gboolean alert)
 {
@@ -40,7 +40,7 @@ void set_icon_alert(gboolean alert)
   }
 }
 
-gboolean handle_dock_event(Window dockapp, GdkEventButton *event, Gtkwindow dialog)
+static gboolean handle_dock_event(Window dockapp, GdkEventButton *event, Gtkwindow dialog)
 {
   if (event->button == 1) {
     gtk_widget_show_all(dialog.w);
