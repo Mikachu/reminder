@@ -14,7 +14,6 @@
 static Gtkwindow dialog;
 
 static glong get_epochseconds(void);
-static const gchar *get_iso8601(void);
 static void cell_toggled(Cellrenderer renderer, const gchar *path_string,
                          Liststore liststore);
 static void cell_edited(Cellrenderer renderer, const gchar *path_string,
