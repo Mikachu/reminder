@@ -9,11 +9,11 @@
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
 #include <X11/Xlib.h>
-#include "Alert.xpm"
-#include "Alert.xbm"
-#include "Idle.xpm"
-#include "Idle.xbm"
 #include <X11/extensions/shape.h>
+#include "pixmaps/Alert.xpm"
+#include "pixmaps/Alert.xbm"
+#include "pixmaps/Idle.xpm"
+#include "pixmaps/Idle.xbm"
 
 /* nicer gtk interface */
 #include "gtkunion.h"
