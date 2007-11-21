@@ -29,7 +29,8 @@ static void cell_toggled(Cellrenderer renderer, const gchar *path_string,
 static void cell_edited(Cellrenderer renderer, const gchar *path_string,
                         gchar *new_text, Liststore liststore);
 static void new_action(Button button, Treeview treeview);
-static void delete_selected_action(Button button, Treeview treeview);
+static void delete_selected_action(Gtkwindow window, gint answer, Treeview treeview);
+static void confirm_delete_action(Button button, Treeview treeview);
 static void selected_action(Treeselection selection, Button delete);
 static void load_actions(Liststore liststore);
 static void write_keyfile(GKeyFile *key_file, const gchar *config_file);
@@ -132,17 +133,31 @@ static void new_action(Button button, Treeview treeview)
   gtk_tree_path_free(path);
 }
 
-static void delete_selected_action(Button button, Treeview treeview)
+static void delete_selected_action(Gtkwindow window, gint answer, Treeview treeview)
 {
-  Liststore liststore;
-  Treeiter iter;
-  Treeselection selection;
+  if (answer == GTK_RESPONSE_YES) {
+    Liststore liststore;
+    Treeiter iter;
+    Treeselection selection;
 
-  selection.s = gtk_tree_view_get_selection(treeview.t);
-  if (gtk_tree_selection_get_selected(selection.s, NULL, &iter)) {
-    liststore.t = gtk_tree_view_get_model(treeview.t);
-    gtk_list_store_remove(liststore.l, &iter);
+    selection.s = gtk_tree_view_get_selection(treeview.t);
+    if (gtk_tree_selection_get_selected(selection.s, NULL, &iter)) {
+      liststore.t = gtk_tree_view_get_model(treeview.t);
+      gtk_list_store_remove(liststore.l, &iter);
+    }
   }
+
+  gtk_widget_destroy(window.w);
+}
+
+static void confirm_delete_action(Button button, Treeview treeview)
+{
+  Gtkwindow confirm;
+  confirm.w = gtk_message_dialog_new(dialog.d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+                                     GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+                                     "Are you sure you want to delete this action?");
+  g_signal_connect(confirm.o, "response", G_CALLBACK(delete_selected_action), treeview.w);
+  gtk_widget_show_all(confirm.w);
 }
 
 static void selected_action(Treeselection selection, Button delete)
@@ -348,7 +363,7 @@ static Widget create_settings(void)
 
   /* Delete button */
   button.w = gtk_button_new_with_mnemonic("_Delete");
-  g_signal_connect(button.o, "clicked", G_CALLBACK(delete_selected_action), treeview.t);
+  g_signal_connect(button.o, "clicked", G_CALLBACK(confirm_delete_action), treeview.t);
   gtk_widget_set_sensitive(button.w, FALSE);
   gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
 
