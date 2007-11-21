@@ -313,9 +313,9 @@ static gboolean check_actions(Liststore liststore)
 
 static Widget create_settings(void)
 {
-  Vbox vbox; /* This contains all elements */
+  Vbox vbox; /* This contains the liststore and the hbox */
   Hbox hbox; /* This contains the buttons at the bottom */
-  Scrolledwindow scroll;
+  Scrolledwindow scroll; /* Need to put the treeview in one of these to get scrollbars */
   Treeview treeview;
   Liststore liststore;
   Treeselection selection;
