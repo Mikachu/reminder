@@ -369,14 +369,13 @@ static gboolean check_actions(Liststore liststore)
       gtk_list_store_set(liststore.l, &iter, COL_EXPIRED, TRUE, -1);
       set_icon_alert(TRUE);
       all_handled = FALSE;
-    } else if (all_handled && (!nearesttimeout || interval - timepassed < nearesttimeout))
+    } else if (!nearesttimeout || interval - timepassed < nearesttimeout)
       nearesttimeout = interval - timepassed;
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
   }
-  if (all_handled) {
-    g_timeout_add_seconds(nearesttimeout, (GSourceFunc)check_actions, liststore.t);
+  if (all_handled)
     set_icon_alert(FALSE);
-  }
+  g_timeout_add_seconds(nearesttimeout, (GSourceFunc)check_actions, liststore.t);
   return FALSE;
 }
 
