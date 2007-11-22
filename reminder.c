@@ -21,9 +21,6 @@ enum {
   COL_DATEVAL
 };
 
-static Gtkwindow dialog;
-static gboolean unsaved;
-
 static void set_sensitivity(GObject *object, gboolean sensitive);
 static void cell_toggled(Cellrenderer renderer, const gchar *path_string,
                          Liststore liststore);
@@ -38,7 +35,7 @@ static void write_keyfile(GKeyFile *key_file, const gchar *config_file);
 static void save_actions(Button button, Treeview treeview);
 static Treeviewcolumn new_column(const gchar *name, Liststore store, gint c, gboolean check);
 static gboolean check_actions(Liststore liststore);
-static Widget create_settings(void);
+static Widget create_settings(Gtkwindow dialog);
 static Gtkwindow create_dialog(void);
 
 static void set_sensitivity(GObject *object, gboolean sensitive)
@@ -46,7 +43,14 @@ static void set_sensitivity(GObject *object, gboolean sensitive)
   Button button;
   button.o = g_object_get_data(object, "savebutton");
   gtk_widget_set_sensitive(button.w, sensitive);
-  unsaved = sensitive;
+  g_object_set_data(object, "unsaved", GINT_TO_POINTER(sensitive));
+}
+
+static Gtkwindow get_dialog(GObject *object)
+{
+  Gtkwindow dialog;
+  dialog.o = g_object_get_data(object, "dialog");
+  return dialog;
 }
 
 /* Update the last date when marking the task as done */
@@ -84,7 +88,7 @@ static void cell_edited(Cellrenderer renderer, const gchar *path_string,
     case COL_DATESTRING:
       if (!g_time_val_from_iso8601(new_text, &time)) {
         Gtkwindow message;
-        message.w = gtk_message_dialog_new(dialog.d, GTK_DIALOG_DESTROY_WITH_PARENT
+        message.w = gtk_message_dialog_new(get_dialog(liststore.o).d, GTK_DIALOG_DESTROY_WITH_PARENT
                                | GTK_DIALOG_MODAL, GTK_MESSAGE_WARNING, GTK_BUTTONS_OK,
                                "The entered date is in an invalid format, not using.");
         g_signal_connect(message.o, "response", G_CALLBACK(gtk_widget_destroy), message.w);
@@ -175,7 +179,7 @@ static void confirm_delete_action(Button button, Treeview treeview)
                        COL_NAME, &name,
                        -1);
     message = g_strdup_printf("Are you sure you want to delete the action '%s'?", name);
-    confirm.w = gtk_message_dialog_new(dialog.d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+    confirm.w = gtk_message_dialog_new(get_dialog(liststore.o).d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
                                        GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, message);
     g_signal_connect(confirm.o, "response", G_CALLBACK(delete_selected_action), treeview.w);
     gtk_widget_show_all(confirm.w);
@@ -356,11 +360,11 @@ static void confirmed_quit(Gtkwindow window, gint answer, void *unused)
   gtk_widget_destroy(window.w);
 }
 
-static void confirm_quit(Button button, void *unused)
+static void confirm_quit(Button button, GObject *object)
 {
-  if (unsaved) {
+  if (g_object_get_data(object, "unsaved")) {
     Gtkwindow confirm;
-    confirm.w = gtk_message_dialog_new(dialog.d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+    confirm.w = gtk_message_dialog_new(get_dialog(object).d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
                                        GTK_MESSAGE_WARNING, GTK_BUTTONS_YES_NO,
                                        "There are unsaved changes, quit anyway?");
     g_signal_connect(confirm.o, "response", G_CALLBACK(confirmed_quit), NULL);
@@ -369,7 +373,7 @@ static void confirm_quit(Button button, void *unused)
     gtk_main_quit();
 }
 
-static Widget create_settings(void)
+static Widget create_settings(Gtkwindow dialog)
 {
   Vbox vbox; /* This contains the liststore and the hbox */
   Hbox hbox; /* This contains the buttons at the bottom */
@@ -384,6 +388,7 @@ static Widget create_settings(void)
    * the iso8601 representation so often. */
   liststore.l = gtk_list_store_new(5, G_TYPE_STRING, G_TYPE_INT, G_TYPE_STRING,
                                       G_TYPE_BOOLEAN, G_TYPE_INT);
+  g_object_set_data(liststore.o, "dialog", dialog.o);
 
   treeview.w = gtk_tree_view_new_with_model(liststore.t);
   gtk_tree_view_set_rules_hint(treeview.t, TRUE);
@@ -438,11 +443,11 @@ static Widget create_settings(void)
    * when something changes */
   g_object_set_data(liststore.o, "savebutton", button.o);
   gtk_widget_set_sensitive(button.w, FALSE);
-  unsaved = FALSE;
+  g_object_set_data(liststore.o, "unsaved", GINT_TO_POINTER(FALSE));
 
   /* Quit button */
   button.w = gtk_button_new_with_mnemonic("_Quit");
-  g_signal_connect(button.o, "clicked", G_CALLBACK(confirm_quit), NULL);
+  g_signal_connect(button.o, "clicked", G_CALLBACK(confirm_quit), liststore.o);
   gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
 
   gtk_box_pack_start(vbox.b, hbox.w, FALSE, FALSE, 0);
@@ -452,19 +457,22 @@ static Widget create_settings(void)
 
 static Gtkwindow create_dialog(void)
 {
+  Gtkwindow dialog;
   dialog.w = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(dialog.d, "Reminder");
   gtk_window_set_default_size(dialog.d, 400, 600);
   gtk_window_set_position(dialog.d, GTK_WIN_POS_CENTER);
   g_signal_connect(dialog.o, "delete-event", G_CALLBACK(gtk_widget_hide), NULL);
 
-  gtk_container_add(dialog.c, create_settings());
+  gtk_container_add(dialog.c, create_settings(dialog));
 
   return dialog;
 }
 
 int main(int argc, char *argv[])
 {
+  Gtkwindow dialog;
+
   gtk_init(&argc, &argv);
 
   dialog = create_dialog();
