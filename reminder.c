@@ -303,25 +303,24 @@ static void save_actions(Button button, Treeview treeview)
   g_free(config_file);
 }
 
-static Treeviewcolumn new_column(const gchar *name, Liststore store, gint c, gboolean check)
+static void confirmed_quit(Gtkwindow window, gint answer, void *unused)
 {
-  Treeviewcolumn column;
-  Cellrenderer renderer;
+  if (answer == GTK_RESPONSE_YES)
+    gtk_main_quit();
+  gtk_widget_destroy(window.w);
+}
 
-  renderer.r = check ? gtk_cell_renderer_toggle_new() : gtk_cell_renderer_text_new();
-  g_object_set(renderer.o, check ? "activatable" : "editable", TRUE, NULL);
-  g_object_set_data(renderer.o, "column", GINT_TO_POINTER(c));
-  g_signal_connect(renderer.o, check ? "toggled" : "edited",
-                   check ? G_CALLBACK(cell_toggled) : G_CALLBACK(cell_edited), store.t);
-
-  column.c = gtk_tree_view_column_new_with_attributes(name, renderer.r,
-                                                      check ? "active" : "text", c, NULL);
-  g_object_set(column.o, "resizable", TRUE,
-                         "sizing", GTK_TREE_VIEW_COLUMN_AUTOSIZE,
-                         check ? NULL : "expand", TRUE,
-                         NULL);
-
-  return column;
+static void confirm_quit(Button button, GObject *object)
+{
+  if (g_object_get_data(object, "unsaved")) {
+    Gtkwindow confirm;
+    confirm.w = gtk_message_dialog_new(get_dialog(object).d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+                                       GTK_MESSAGE_WARNING, GTK_BUTTONS_YES_NO,
+                                       "There are unsaved changes, quit anyway?");
+    g_signal_connect(confirm.o, "response", G_CALLBACK(confirmed_quit), NULL);
+    gtk_widget_show_all(confirm.w);
+  } else
+    gtk_main_quit();
 }
 
 static glong get_epochseconds(void)
@@ -365,24 +364,25 @@ static gboolean check_actions(Liststore liststore)
   return TRUE;
 }
 
-static void confirmed_quit(Gtkwindow window, gint answer, void *unused)
+static Treeviewcolumn new_column(const gchar *name, Liststore store, gint c, gboolean check)
 {
-  if (answer == GTK_RESPONSE_YES)
-    gtk_main_quit();
-  gtk_widget_destroy(window.w);
-}
+  Treeviewcolumn column;
+  Cellrenderer renderer;
 
-static void confirm_quit(Button button, GObject *object)
-{
-  if (g_object_get_data(object, "unsaved")) {
-    Gtkwindow confirm;
-    confirm.w = gtk_message_dialog_new(get_dialog(object).d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
-                                       GTK_MESSAGE_WARNING, GTK_BUTTONS_YES_NO,
-                                       "There are unsaved changes, quit anyway?");
-    g_signal_connect(confirm.o, "response", G_CALLBACK(confirmed_quit), NULL);
-    gtk_widget_show_all(confirm.w);
-  } else
-    gtk_main_quit();
+  renderer.r = check ? gtk_cell_renderer_toggle_new() : gtk_cell_renderer_text_new();
+  g_object_set(renderer.o, check ? "activatable" : "editable", TRUE, NULL);
+  g_object_set_data(renderer.o, "column", GINT_TO_POINTER(c));
+  g_signal_connect(renderer.o, check ? "toggled" : "edited",
+                   check ? G_CALLBACK(cell_toggled) : G_CALLBACK(cell_edited), store.t);
+
+  column.c = gtk_tree_view_column_new_with_attributes(name, renderer.r,
+                                                      check ? "active" : "text", c, NULL);
+  g_object_set(column.o, "resizable", TRUE,
+                         "sizing", GTK_TREE_VIEW_COLUMN_AUTOSIZE,
+                         check ? NULL : "expand", TRUE,
+                         NULL);
+
+  return column;
 }
 
 static Widget create_settings(Gtkwindow dialog)
@@ -442,7 +442,8 @@ static Widget create_settings(Gtkwindow dialog)
   gtk_widget_set_sensitive(button.w, FALSE);
   gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
 
-  /* Pass the delete button so we can toggle sensitivity when columns are selected */
+  /* Pass the delete button to the selection object so we can toggle
+   * sensitivity when columns are selected */
   selection.s = gtk_tree_view_get_selection(treeview.t);
   g_signal_connect(selection.o, "changed", G_CALLBACK(selected_action), button.w);
 
@@ -477,6 +478,7 @@ static Gtkwindow create_dialog(void)
   g_signal_connect(dialog.o, "delete-event", G_CALLBACK(gtk_widget_hide), NULL);
 
   gtk_container_add(dialog.c, create_settings(dialog));
+  gtk_window_set_icon(dialog.d, gdk_pixbuf_new_from_xpm_data((const char **)&icon_xpm));
 
   return dialog;
 }
@@ -488,8 +490,6 @@ int main(int argc, char *argv[])
   gtk_init(&argc, &argv);
 
   dialog = create_dialog();
-
-  gtk_window_set_icon(dialog.d, gdk_pixbuf_new_from_xpm_data((const char **)&icon_xpm));
 
   create_icon(dialog, argc, argv);
 
