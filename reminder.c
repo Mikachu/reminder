@@ -27,7 +27,7 @@ static gboolean check_actions(Liststore liststore);
 
 #include "trivial.c"
 
-static void set_sensitivity(GObject *object, gboolean sensitive)
+static void set_save_sensitivity(GObject *object, gboolean sensitive)
 {
   Button button;
   button.o = g_object_get_data(object, "savebutton");
@@ -35,6 +35,7 @@ static void set_sensitivity(GObject *object, gboolean sensitive)
   g_object_set_data(object, "unsaved", GINT_TO_POINTER(sensitive));
 }
 
+/* This just saves making dialog a global variable. */
 static Gtkwindow get_dialog(GObject *object)
 {
   Gtkwindow dialog;
@@ -69,7 +70,7 @@ static void cell_toggled(Cellrenderer renderer, const gchar *path_string,
     gtk_list_store_set(liststore.l, &iter,
                        COL_EXPIRED,    FALSE,
                        -1);
-  set_sensitivity(liststore.o, TRUE);
+  set_save_sensitivity(liststore.o, TRUE);
   check_actions(liststore);
 }
 
@@ -104,14 +105,14 @@ static void cell_edited(Cellrenderer renderer, const gchar *path_string,
       gtk_list_store_set(liststore.l, &iter,
                          column, new_text,
                          -1);
-      set_sensitivity(liststore.o, TRUE);
+      set_save_sensitivity(liststore.o, TRUE);
       break;
     case COL_INTERVAL:
       gtk_list_store_set(liststore.l, &iter,
                          column, GINT_TO_POINTER(atoi(new_text)),
                          -1);
       check_actions(liststore);
-      set_sensitivity(liststore.o, TRUE);
+      set_save_sensitivity(liststore.o, TRUE);
       break;
   }
 }
@@ -142,7 +143,7 @@ static void new_action(Button button, Treeview treeview)
   gtk_tree_selection_select_path(selection.s, path);
   gtk_tree_view_scroll_to_cell(treeview.t, path, NULL, FALSE, 0.0, 0.0);
   check_actions(liststore);
-  set_sensitivity(liststore.o, TRUE);
+  set_save_sensitivity(liststore.o, TRUE);
 
   gtk_tree_path_free(path);
 }
@@ -157,7 +158,7 @@ static void delete_response(Gtkwindow window, gint answer, Treeview treeview)
       liststore.t = gtk_tree_view_get_model(treeview.t);
       gtk_list_store_remove(liststore.l, &iter);
       check_actions(liststore);
-      set_sensitivity(liststore.o, TRUE);
+      set_save_sensitivity(liststore.o, TRUE);
     }
   }
 
@@ -184,14 +185,6 @@ static void confirm_delete_action(Button button, Treeview treeview)
     g_signal_connect(confirm.o, "response", G_CALLBACK(delete_response), treeview.w);
     gtk_widget_show_all(confirm.w);
   }
-}
-
-static const gchar *tv_sec_to_iso8601(gint tv_sec)
-{
-  GTimeVal time;
-  time.tv_sec = tv_sec;
-  time.tv_usec = 0;
-  return g_time_val_to_iso8601(&time);
 }
 
 static void load_actions(Liststore liststore)
@@ -278,7 +271,7 @@ static void save_actions(Button button, Treeview treeview)
     }
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
   }
-  set_sensitivity(liststore.o, FALSE);
+  set_save_sensitivity(liststore.o, FALSE);
 
   write_keyfile(key_file, config_file);
   g_key_file_free(key_file);
@@ -300,18 +293,11 @@ static void confirm_quit(Button button, GObject *object)
     gtk_main_quit();
 }
 
-static glong get_epochseconds(void)
-{
-  GTimeVal time;
-  g_get_current_time(&time);
-  return time.tv_sec;
-}
-
 static gboolean check_actions(Liststore liststore)
 {
   Treeiter iter;
   gboolean valid;
-  gboolean all_handled = TRUE;
+  gboolean no_expired = TRUE;
   glong now = get_epochseconds();
   gint timepassed, nearesttimeout = 0;
 
@@ -328,16 +314,16 @@ static gboolean check_actions(Liststore liststore)
     timepassed = now - lastdone;
     interval*=3600;
     if (expired)
-      all_handled = FALSE;
+      no_expired = FALSE;
     else if (timepassed >= interval) {
       gtk_list_store_set(liststore.l, &iter, COL_EXPIRED, TRUE, -1);
       set_icon_alert(TRUE);
-      all_handled = FALSE;
+      no_expired = FALSE;
     } else if (!nearesttimeout || interval - timepassed < nearesttimeout)
       nearesttimeout = interval - timepassed;
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
   }
-  if (all_handled)
+  if (no_expired)
     set_icon_alert(FALSE);
   g_timeout_add_seconds(nearesttimeout, (GSourceFunc)check_actions, liststore.t);
   return FALSE;
@@ -383,6 +369,7 @@ static Widget create_settings(Gtkwindow dialog)
   g_object_set_data(dialog.o, "liststore", liststore.o);
 
   treeview.w = gtk_tree_view_new_with_model(liststore.t);
+  /* this makes gtk+ draw rows in alternating colors which makes things easier to read */
   gtk_tree_view_set_rules_hint(treeview.t, TRUE);
   gtk_tree_view_set_headers_visible(treeview.t, TRUE);  
 
@@ -419,9 +406,6 @@ static Widget create_settings(Gtkwindow dialog)
   g_signal_connect(button.o, "clicked", G_CALLBACK(confirm_delete_action), treeview.t);
   gtk_widget_set_sensitive(button.w, FALSE);
   gtk_box_pack_start(hbox.b, button.w, TRUE, TRUE, 0);
-
-  /* Pass the delete button to the selection object so we can toggle
-   * sensitivity when columns are selected */
   selection.s = gtk_tree_view_get_selection(treeview.t);
   g_signal_connect(selection.o, "changed", G_CALLBACK(gtk_sensitive_when_selected), button.w);
 
@@ -456,7 +440,7 @@ static Gtkwindow create_dialog(void)
   Gtkwindow dialog;
   dialog.w = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(dialog.d, "Reminder");
-  gtk_window_set_default_size(dialog.d, 400, 600);
+  gtk_window_set_default_size(dialog.d, 400, 300);
   gtk_window_set_position(dialog.d, GTK_WIN_POS_CENTER);
   g_signal_connect(dialog.o, "delete-event", G_CALLBACK(gtk_widget_hide), NULL);
 
