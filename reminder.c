@@ -325,7 +325,9 @@ static gboolean check_actions(Liststore liststore)
   }
   if (no_expired)
     set_icon_alert(FALSE);
-  g_timeout_add_seconds(nearesttimeout, (GSourceFunc)check_actions, liststore.t);
+  if (nearesttimeout)
+    g_timeout_add_seconds(nearesttimeout, (GSourceFunc)check_actions, liststore.t);
+  /* Don't repeat timeout */
   return FALSE;
 }
 
