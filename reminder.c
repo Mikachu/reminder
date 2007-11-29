@@ -374,7 +374,7 @@ static Treeviewcolumn new_column(const gchar *name, Liststore store, gint c, gbo
   return column;
 }
 
-static Widget create_settings(Gtkwindow dialog)
+static Widget create_tasks_page(Gtkwindow dialog)
 {
   Vbox vbox; /* This contains the liststore and the hbox */
   Hbox hbox; /* This contains the buttons at the bottom */
@@ -461,16 +461,30 @@ static Widget create_settings(Gtkwindow dialog)
   return vbox.w;
 }
 
+static Widget create_details_page(Gtkwindow dialog)
+{
+  Liststore liststore;
+
+  liststore.o = g_object_get_data(dialog.o, "liststore");
+
+  return gtk_label_new("HELLO");
+}
+
 static Gtkwindow create_dialog(void)
 {
   Gtkwindow dialog;
+  Notebook note;
   dialog.w = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(dialog.d, "Reminder");
   gtk_window_set_default_size(dialog.d, 500, 300);
   gtk_window_set_position(dialog.d, GTK_WIN_POS_CENTER);
   g_signal_connect(dialog.o, "delete-event", G_CALLBACK(gtk_widget_hide), NULL);
 
-  gtk_container_add(dialog.c, create_settings(dialog));
+  note.w = gtk_notebook_new();
+  gtk_notebook_set_tab_pos(note.n, GTK_POS_TOP);
+  gtk_container_add(dialog.c, note.w);
+  gtk_notebook_append_page(note.n, create_tasks_page(dialog), gtk_label_new("Tasks"));
+  gtk_notebook_append_page(note.n, create_details_page(dialog), gtk_label_new("Details"));
   gtk_window_set_icon(dialog.d, gdk_pixbuf_new_from_xpm_data((const char **)&icon_xpm));
 
   return dialog;

@@ -43,6 +43,13 @@ typedef union {
 } Cellrenderer;
 
 typedef union {
+  GtkNotebook *n;
+  GtkContainer *c;
+  GtkWidget *w;
+  GObject *o;
+} Notebook;
+
+typedef union {
   GtkHBox *v;
   GtkContainer *c;
   GtkBox *b;
