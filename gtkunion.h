@@ -83,6 +83,12 @@ typedef union {
 } Label;
 
 typedef union {
+  GtkEntry *e;
+  GtkWidget *w;
+  GObject *o;
+} Entry;
+
+typedef union {
   GtkImage *i;
   GtkWidget *w;
   GObject *o;

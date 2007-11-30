@@ -467,28 +467,54 @@ static void update_details(Notebook note, GtkNotebookPage *page, guint page_num,
   Treeview treeview;
   Liststore liststore;
   Treeiter iter;
+  Entry Name, Interval, Lastdone;
   gchar *name = NULL;
+
+  if (page_num != 1)
+    return;
 
   treeview.o = g_object_get_data(dialog.o, "treeview");
   liststore.t = gtk_tree_view_get_model(treeview.t);
+  Name.o = g_object_get_data(dialog.o, "Name");
+  Interval.o = g_object_get_data(dialog.o, "Interval");
+  Lastdone.o = g_object_get_data(dialog.o, "Last Done");
 
   if (gtk_tree_view_get_selected(treeview, &iter)) {
     gtk_tree_model_get(liststore.t, &iter,
                        COL_NAME, &name,
                        -1);
-    Label label;
-    label.o = g_object_get_data(dialog.o, "name");
-    gtk_label_set_text(label.l, name);
-  }
+    gtk_entry_set_text(Name.e, name);
+  } else
+    gtk_entry_set_text(Name.e, "");
+}
+
+static Hbox create_label_and_button(gchar *name, Gtkwindow dialog)
+{
+  Label label;
+  Entry entry;
+  Hbox hbox;
+
+  hbox.w = gtk_hbox_new(FALSE, PADDING);
+  label.w = gtk_label_new(name);
+  entry.w = gtk_entry_new();
+
+  gtk_box_pack_start(hbox.b, label.w, TRUE, TRUE, 0);
+  gtk_box_pack_start(hbox.b, entry.w, TRUE, TRUE, 0);
+  g_object_set_data(dialog.o, name, entry.o);
+
+  return hbox;
 }
 
 static Widget create_details_page(Gtkwindow dialog)
 {
-  Label label;
+  Vbox vbox;
 
-  label.w = gtk_label_new("HELLO");
-  g_object_set_data(dialog.o, "name", label.o);
-  return label.w;
+  vbox.w = gtk_vbox_new(TRUE, PADDING);
+  gtk_box_pack_start(vbox.b, create_label_and_button("Name", dialog).w, TRUE, TRUE, 0);
+  gtk_box_pack_start(vbox.b, create_label_and_button("Interval", dialog).w, TRUE, TRUE, 0);
+  gtk_box_pack_start(vbox.b, create_label_and_button("Last Done", dialog).w, TRUE, TRUE, 0);
+
+  return vbox.w;
 }
 
 static Gtkwindow create_dialog(void)
