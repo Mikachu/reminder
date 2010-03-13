@@ -193,15 +193,15 @@ static void confirm_delete_action(Button button, Treeview treeview)
     Gtkwindow confirm;
     Liststore liststore;
     const gchar *name;
-    gchar *message;
 
     liststore.t = gtk_tree_view_get_model(treeview.t);
     gtk_tree_model_get(liststore.t, &iter,
                        COL_NAME, &name,
                        -1);
-    message = g_strdup_printf("Are you sure you want to delete the action '%s'?", name);
     confirm.w = gtk_message_dialog_new(get_dialog(liststore.o).d, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
-                                       GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, message);
+                                       GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+                                       "Are you sure you want to delete the action '%s'?",
+                                       name);
     g_signal_connect(confirm.o, "response", G_CALLBACK(delete_response), treeview.w);
     gtk_widget_show_all(confirm.w);
   }
