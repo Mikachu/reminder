@@ -36,6 +36,7 @@ void set_icon_alert(AlertLevel level)
 
 static gboolean handle_dock_event(Plug dockchild, GdkEventButton *event, Gtkwindow dialog)
 {
+  gtk_tree_selection_unselect_all(gtk_tree_view_get_selection(g_object_get_data(dialog.o, "treeview")));
   if (event->button == 1) {
     gtk_widget_show_all(dialog.w);
     return TRUE;
