@@ -39,6 +39,13 @@ static gboolean handle_dock_event(Plug dockchild, GdkEventButton *event, Gtkwind
   gtk_tree_selection_unselect_all(gtk_tree_view_get_selection(g_object_get_data(dialog.o, "treeview")));
   if (event->button == 1) {
     gtk_widget_show_all(dialog.w);
+    if (!gtk_window_is_active(dialog.d)) {
+      gtk_widget_hide(dialog.w);
+      gtk_window_deiconify(dialog.d);
+      gtk_window_present_with_time(dialog.d, event->time);
+    } else {
+      gtk_widget_hide(dialog.w);
+    }
     return TRUE;
   }
   return FALSE;
