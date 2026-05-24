@@ -23,17 +23,34 @@ static void gtk_sensitive_when_selected(Treeselection selection, Widget widget)
   gtk_widget_set_sensitive(widget, gtk_tree_selection_get_selected(selection.s, NULL, NULL));
 }
 
-static const gchar *tv_sec_to_iso8601(gint tv_sec)
+static gint64 get_epochseconds(void)
 {
-  GTimeVal time;
-  time.tv_sec = tv_sec;
-  time.tv_usec = 0;
-  return g_time_val_to_iso8601(&time);
+  gint64 time;
+  time = g_get_real_time();
+  return time / G_USEC_PER_SEC;
 }
 
-static glong get_epochseconds(void)
+static const gchar *unixtime_to_iso8601(gint64 sec)
 {
-  GTimeVal time;
-  g_get_current_time(&time);
-  return time.tv_sec;
+  static gchar buf[64];
+  GDateTime *dt = g_date_time_new_from_unix_local(sec);
+  if (!dt)
+    *buf = '\0';
+  else {
+    gchar *s = g_date_time_format_iso8601(dt);
+    g_date_time_unref(dt);
+    g_strlcpy(buf, s, sizeof(buf));
+    g_free(s);
+  }
+  return buf;
+}
+
+static gboolean unixtime_from_iso8601(const gchar *iso, gint64 *time)
+{
+  GDateTime *dt = g_date_time_new_from_iso8601(iso, NULL);
+  if (!dt)
+    return FALSE;
+  *time = g_date_time_to_unix(dt);
+  g_date_time_unref(dt);
+  return TRUE;
 }

@@ -51,8 +51,8 @@ static void cell_toggled(Cellrenderer renderer, const gchar *path_string,
                          Liststore liststore)
 {
   Treeiter iter;
-  GTimeVal time;
-  gint interval, lastdone, column;
+  gint interval, column;
+  gint64 lastdone, time;
   gboolean expired, postponed;
 
   gtk_tree_model_get_iter_from_string(liststore.t, &iter, path_string);
@@ -66,13 +66,13 @@ static void cell_toggled(Cellrenderer renderer, const gchar *path_string,
   column = GPOINTER_TO_INT(g_object_get_data(renderer.o, "column"));
   switch (column) {
   case COL_EXPIRED:
-    g_get_current_time(&time);
+    time = get_epochseconds();
     /* Automatically update the last done time to the current time, unless
      * the user has already updated the date and the task is currently expired. */
-    if (!expired || (time.tv_sec - lastdone)/(60*60) >= interval)
+    if (!expired || (time - lastdone)/(60*60) >= interval)
       gtk_list_store_set(liststore.l, &iter,
-                         COL_DATESTRING, g_time_val_to_iso8601(&time),
-                         COL_DATEVAL,    time.tv_sec,
+                         COL_DATESTRING, unixtime_to_iso8601(time),
+                         COL_DATEVAL,    time,
                          COL_EXPIRED,    FALSE,
                          COL_POSTPONED,  FALSE,
                          -1);
@@ -99,7 +99,7 @@ static void cell_edited(Cellrenderer renderer, const gchar *path_string,
 {
   Treeiter iter;
   gint column;
-  GTimeVal time;
+  gint64 time;
 
   column = GPOINTER_TO_INT(g_object_get_data(renderer.o, "column"));
 
@@ -107,7 +107,7 @@ static void cell_edited(Cellrenderer renderer, const gchar *path_string,
 
   switch (column) {
     case COL_DATESTRING:
-      if (!g_time_val_from_iso8601(new_text, &time)) {
+      if (!unixtime_from_iso8601(new_text, &time)) {
         Gtkwindow message;
         message.w = gtk_message_dialog_new(get_dialog(liststore.o).d, GTK_DIALOG_DESTROY_WITH_PARENT
                                | GTK_DIALOG_MODAL, GTK_MESSAGE_WARNING, GTK_BUTTONS_OK,
@@ -117,7 +117,7 @@ static void cell_edited(Cellrenderer renderer, const gchar *path_string,
         break;
       }
       gtk_list_store_set(liststore.l, &iter,
-                         COL_DATEVAL, time.tv_sec,
+                         COL_DATEVAL, time,
                          -1);
       check_actions(liststore);
       /* fall through */
@@ -143,9 +143,9 @@ static void new_action(Button button, Treeview treeview)
   Treeiter iter;
   Treeselection selection;
   Treepath path;
-  GTimeVal time;
+  gint64 time;
 
-  g_get_current_time(&time);
+  time = get_epochseconds();
   selection.s = gtk_tree_view_get_selection(treeview.t);
   liststore.t = gtk_tree_view_get_model(treeview.t);
   if (gtk_tree_selection_get_selected(selection.s, NULL, &iter))
@@ -155,9 +155,9 @@ static void new_action(Button button, Treeview treeview)
   gtk_list_store_set(liststore.l, &iter,
                      COL_NAME,       "",
                      COL_INTERVAL,   GINT_TO_POINTER(24),
-                     COL_DATESTRING, g_time_val_to_iso8601(&time),
+                     COL_DATESTRING, unixtime_to_iso8601(time),
                      COL_EXPIRED,    FALSE,
-                     COL_DATEVAL,    time.tv_sec,
+                     COL_DATEVAL,    time,
                      -1);
   path = gtk_tree_model_get_path(liststore.t, &iter);
   gtk_tree_selection_select_path(selection.s, path);
@@ -225,13 +225,13 @@ static void load_actions(Liststore liststore)
     Treeiter iter;
     const gchar *name = *i;
     gint interval = g_key_file_get_integer(key_file, *i, "interval", NULL);
-    gint lastdone = g_key_file_get_integer(key_file, *i, "lastdone", NULL);
+    gint64 lastdone = g_key_file_get_int64(key_file, *i, "lastdone", NULL);
 
     gtk_list_store_append(liststore.l, &iter);
     gtk_list_store_set(liststore.l, &iter,
                        COL_NAME,       name,
                        COL_INTERVAL,   interval,
-                       COL_DATESTRING, tv_sec_to_iso8601(lastdone),
+                       COL_DATESTRING, unixtime_to_iso8601(lastdone),
                        COL_EXPIRED,    FALSE,
                        COL_DATEVAL,    lastdone,
                        -1);
@@ -275,7 +275,8 @@ static void save_actions(Button button, Treeview treeview)
 
   while (valid) {
     const gchar *name;
-    gint interval, lastdone;
+    gint interval;
+    gint64 lastdone;
     gboolean expired;
     
     gtk_tree_model_get(liststore.t, &iter,
@@ -286,7 +287,7 @@ static void save_actions(Button button, Treeview treeview)
                        -1);
     if (*name) {
       g_key_file_set_integer(key_file, name, "interval", interval);
-      g_key_file_set_integer(key_file, name, "lastdone", lastdone);
+      g_key_file_set_int64  (key_file, name, "lastdone", lastdone);
       g_key_file_set_integer(key_file, name, "expired", expired);
     }
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
@@ -318,13 +319,14 @@ static gboolean check_actions(Liststore liststore)
   Treeiter iter;
   gboolean valid;
   AlertLevel level = ALERT_IDLE;
-  glong now = get_epochseconds();
+  gint64 now = get_epochseconds();
   gint timepassed, nearesttimeout = 0;
 
   valid = gtk_tree_model_get_iter_first(liststore.t, &iter);
   while (valid) {
     gboolean expired, postponed;
-    gint interval, lastdone;
+    gint interval;
+    gint64 lastdone;
     
     gtk_tree_model_get(liststore.t, &iter,
                        COL_INTERVAL, &interval,
@@ -384,12 +386,12 @@ static Widget create_tasks_page(Gtkwindow dialog)
   Treeselection selection;
   Button button;
 
-  /* Create a new liststore and attach it to a treeview, the fifth column is
+  /* Create a new liststore and attach it to a treeview, the sixth column is
    * used for caching the last done date as an integer so we don't have to parse
    * the iso8601 representation so often. */
   liststore.l = gtk_list_store_new(NUMBER_OF_COLUMNS,
                                    G_TYPE_STRING, G_TYPE_INT, G_TYPE_STRING,
-                                   G_TYPE_BOOLEAN, G_TYPE_BOOLEAN, G_TYPE_INT);
+                                   G_TYPE_BOOLEAN, G_TYPE_BOOLEAN, G_TYPE_INT64);
   g_object_set_data(liststore.o, "dialog", dialog.o);
   g_object_set_data(dialog.o, "liststore", liststore.o);
 
