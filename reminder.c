@@ -470,24 +470,79 @@ static void update_details(Notebook note, GtkNotebookPage *page, guint page_num,
   Liststore liststore;
   Treeiter iter;
   Entry Name, Interval, Lastdone;
-  gchar *name = NULL;
 
   if (page_num != 1)
     return;
 
   treeview.o = g_object_get_data(dialog.o, "treeview");
   liststore.t = gtk_tree_view_get_model(treeview.t);
-  Name.o = g_object_get_data(dialog.o, "Name");
+  Name.o     = g_object_get_data(dialog.o, "Name");
   Interval.o = g_object_get_data(dialog.o, "Interval");
   Lastdone.o = g_object_get_data(dialog.o, "Last Done");
 
   if (gtk_tree_view_get_selected(treeview, &iter)) {
+    gchar *name = NULL, *datestring = NULL;
+    gint interval;
+    gchar buf[32];
     gtk_tree_model_get(liststore.t, &iter,
-                       COL_NAME, &name,
+                       COL_NAME,       &name,
+                       COL_INTERVAL,   &interval,
+                       COL_DATESTRING, &datestring,
                        -1);
     gtk_entry_set_text(Name.e, name);
-  } else
+    g_snprintf(buf, sizeof(buf), "%d", interval);
+    gtk_entry_set_text(Interval.e, buf);
+    gtk_entry_set_text(Lastdone.e, datestring);
+    g_free(name);
+    g_free(datestring);
+  } else {
     gtk_entry_set_text(Name.e, "");
+    gtk_entry_set_text(Interval.e, "");
+    gtk_entry_set_text(Lastdone.e, "");
+  }
+}
+
+static void apply_details(Button button, Gtkwindow dialog)
+{
+  Treeview treeview;
+  Liststore liststore;
+  Treeiter iter;
+  Entry Name, Interval, Lastdone;
+  gint interval;
+  gint64 lastdone;
+
+  treeview.o  = g_object_get_data(dialog.o, "treeview");
+  liststore.o = g_object_get_data(dialog.o, "liststore");
+  liststore.t = gtk_tree_view_get_model(treeview.t);
+  Name.o      = g_object_get_data(dialog.o, "Name");
+  Interval.o  = g_object_get_data(dialog.o, "Interval");
+  Lastdone.o  = g_object_get_data(dialog.o, "Last Done");
+
+  if (!gtk_tree_view_get_selected(treeview, &iter))
+    return;
+
+  interval = atoi(gtk_entry_get_text(Interval.e));
+  if (interval <= 0) {
+    /* no error */
+  }
+  if (!unixtime_from_iso8601(gtk_entry_get_text(Lastdone.e), &lastdone)) {
+    Gtkwindow message;
+    message.w = gtk_message_dialog_new(get_dialog(liststore.o).d, GTK_DIALOG_DESTROY_WITH_PARENT
+                           | GTK_DIALOG_MODAL, GTK_MESSAGE_WARNING, GTK_BUTTONS_OK,
+                           "The entered date is in an invalid format, not using.");
+    g_signal_connect(message.o, "response", G_CALLBACK(gtk_widget_destroy), message.w);
+    gtk_widget_show_all(message.w);
+    return;
+  }
+
+  gtk_list_store_set(liststore.l, &iter,
+                     COL_NAME,       gtk_entry_get_text(Name.e),
+                     COL_INTERVAL,   interval,
+                     COL_DATESTRING, unixtime_to_iso8601(lastdone),
+                     COL_DATEVAL,    lastdone,
+                     -1);
+  set_save_sensitivity(liststore.o, TRUE);
+  check_actions(liststore);
 }
 
 static Hbox create_label_and_button(gchar *name, Gtkwindow dialog)
@@ -507,15 +562,39 @@ static Hbox create_label_and_button(gchar *name, Gtkwindow dialog)
   return hbox;
 }
 
+static void hook_sensitive_by_name(Gtkwindow dialog, Treeselection selection, const gchar *name)
+{
+  Entry entry;
+  entry.o = g_object_get_data(dialog.o, name);
+  gtk_widget_set_sensitive(entry.w, FALSE);
+  g_signal_connect(selection.o, "changed", G_CALLBACK(gtk_sensitive_when_selected), entry.w);
+
+}
+
 static Widget create_details_page(Gtkwindow dialog)
 {
   Vbox vbox;
+  Button button;
 
-  vbox.w = gtk_vbox_new(TRUE, PADDING);
-  /* Use a GtkTable */
-  gtk_box_pack_start(vbox.b, create_label_and_button("Name", dialog).w, FALSE, TRUE, 0);
-  gtk_box_pack_start(vbox.b, create_label_and_button("Interval", dialog).w, FALSE, TRUE, 0);
+  Treeview treeview;
+  Treeselection selection;
+  treeview.o  = g_object_get_data(dialog.o, "treeview");
+  selection.s = gtk_tree_view_get_selection(treeview.t);
+
+  vbox.w = gtk_vbox_new(FALSE, PADDING);
+  gtk_box_pack_start(vbox.b, create_label_and_button("Name", dialog).w,      FALSE, TRUE, 0);
+  gtk_box_pack_start(vbox.b, create_label_and_button("Interval", dialog).w,  FALSE, TRUE, 0);
   gtk_box_pack_start(vbox.b, create_label_and_button("Last Done", dialog).w, FALSE, TRUE, 0);
+
+  button.w = gtk_button_new_with_mnemonic("_Apply");
+  gtk_widget_set_sensitive(button.w, FALSE);
+  g_signal_connect(button.o, "clicked", G_CALLBACK(apply_details), dialog.o);
+  g_signal_connect(selection.o, "changed", G_CALLBACK(gtk_sensitive_when_selected), button.w);
+  gtk_box_pack_start(vbox.b, button.w, FALSE, TRUE, 0);
+
+  hook_sensitive_by_name(dialog, selection, "Name");
+  hook_sensitive_by_name(dialog, selection, "Interval");
+  hook_sensitive_by_name(dialog, selection, "Last Done");
 
   return vbox.w;
 }
