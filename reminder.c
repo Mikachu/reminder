@@ -350,7 +350,7 @@ static gboolean check_actions(Liststore liststore)
   }
   set_icon_alert(level);
   while (g_source_remove_by_user_data(liststore.t));
-  if (nearesttimeout)
+  if (nearesttimeout && level < ALERT_ALERT)
     g_timeout_add_seconds(nearesttimeout, (GSourceFunc)check_actions, liststore.t);
   /* Don't repeat timeout */
   return FALSE;

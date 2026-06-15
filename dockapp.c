@@ -81,7 +81,7 @@ void create_icon(Gtkwindow dialog, int argc, char *argv[])
   pixmap[ALERT_ALERT] = gdk_pixmap_create_from_xpm_d(dockchild.w->window, &bitmap[ALERT_ALERT], NULL, alert_xpm);
 
   image.w = gtk_image_new();
-  set_icon_alert(FALSE);
+  set_icon_alert(ALERT_IDLE);
   gtk_container_add(dockchild.c, image.w);
 
   gtk_widget_show_all(dockchild.w);
