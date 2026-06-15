@@ -192,7 +192,7 @@ static void confirm_delete_action(Button button, Treeview treeview)
   if (gtk_tree_view_get_selected(treeview, &iter)) {
     Gtkwindow confirm;
     Liststore liststore;
-    const gchar *name;
+    gchar *name;
 
     liststore.t = gtk_tree_view_get_model(treeview.t);
     gtk_tree_model_get(liststore.t, &iter,
@@ -202,6 +202,7 @@ static void confirm_delete_action(Button button, Treeview treeview)
                                        GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
                                        "Are you sure you want to delete the action '%s'?",
                                        name);
+    g_free(name);
     g_signal_connect(confirm.o, "response", G_CALLBACK(delete_response), treeview.w);
     gtk_widget_show_all(confirm.w);
   }
@@ -274,7 +275,7 @@ static void save_actions(Button button, Treeview treeview)
   valid = gtk_tree_model_get_iter_first(liststore.t, &iter);
 
   while (valid) {
-    const gchar *name;
+    gchar *name;
     gint interval;
     gint64 lastdone;
     gboolean expired;
@@ -290,6 +291,7 @@ static void save_actions(Button button, Treeview treeview)
       g_key_file_set_int64  (key_file, name, "lastdone", lastdone);
       g_key_file_set_integer(key_file, name, "expired", expired);
     }
+    g_free(name);
     valid = gtk_tree_model_iter_next(liststore.t, &iter);
   }
   set_save_sensitivity(liststore.o, FALSE);
